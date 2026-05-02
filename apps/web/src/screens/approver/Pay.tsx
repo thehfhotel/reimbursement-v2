@@ -1,0 +1,299 @@
+import { useRef, useState } from 'react';
+import type { AppState, Theme } from '../../lib/types';
+import type { Nav } from '../../lib/router';
+import { fmt } from '../../lib/format';
+import { FONT_DISPLAY, FONT_MONO, FONT_UI } from '../../lib/theme';
+import { api, payFormFromFields } from '../../lib/api';
+import { AppBar } from '../../components/AppBar';
+import { Card, IconBtn, Money, PrimaryButton, SectionHeader } from '../../components/primitives';
+import { Icon } from '../../components/icons';
+import { FormRow } from '../../components/FormRow';
+
+interface PayProps {
+  theme: Theme;
+  state: AppState;
+  nav: Nav;
+  bundleId: string;
+  setState: (updater: (s: AppState) => AppState) => void;
+}
+
+export function Pay({ theme, state, nav, bundleId, setState }: PayProps) {
+  const b = state.bundles.find((x) => x.id === bundleId);
+  const [step, setStep] = useState<'attach' | 'done'>('attach');
+  const [ref, setRef] = useState('');
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  if (!b) return null;
+  const items = b.receipts;
+  const total = items.reduce((s, r) => s + r.amount, 0);
+
+  const onFile = (file: File) => {
+    setProofFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setProofPreview(typeof reader.result === 'string' ? reader.result : null);
+    reader.readAsDataURL(file);
+  };
+
+  const handleConfirmPay = async () => {
+    if (!proofFile || !ref || submitting) return;
+    setSubmitting(true);
+    try {
+      const updated = await api.bundles.pay(b.id, payFormFromFields(ref, proofFile));
+      setState((s) => ({
+        ...s,
+        bundles: s.bundles.map((x) => (x.id === updated.id ? updated : x)),
+      }));
+      setStep('done');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (step === 'done') {
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0 36px',
+          }}
+        >
+          <div
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: 36,
+              background: theme.success,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 28,
+            }}
+          >
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <path
+                d="M7 16l6 6 12-13"
+                stroke="#fff"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <h1
+            style={{
+              margin: 0,
+              fontFamily: FONT_DISPLAY,
+              fontWeight: 400,
+              fontSize: 36,
+              letterSpacing: -0.6,
+              color: theme.ink,
+              textAlign: 'center',
+              lineHeight: 1.1,
+            }}
+          >
+            ปิดงานแล้ว
+          </h1>
+          <div
+            style={{
+              fontFamily: FONT_UI,
+              fontSize: 14,
+              color: theme.inkSoft,
+              marginTop: 12,
+              textAlign: 'center',
+              maxWidth: 280,
+              lineHeight: 1.5,
+            }}
+          >
+            จ่าย {fmt(total)} ให้ {b.submitter.name} เรียบร้อย แนบสลิปไว้แล้ว
+          </div>
+          <div
+            style={{
+              marginTop: 28,
+              padding: '12px 18px',
+              background: theme.surface,
+              borderRadius: 100,
+              border: `0.5px solid ${theme.hairline}`,
+              fontFamily: FONT_MONO,
+              fontSize: 12,
+              color: theme.ink,
+            }}
+          >
+            {ref}
+          </div>
+        </div>
+        <div style={{ padding: '0 20px 30px' }}>
+          <PrimaryButton theme={theme} onClick={() => nav({ name: 'approver-home' })}>
+            เสร็จ
+          </PrimaryButton>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ paddingBottom: 130 }}>
+      <AppBar
+        theme={theme}
+        large
+        subtitle="ปิดงานคำขอ"
+        title="โอนเงินจ่าย"
+        leading={
+          <IconBtn theme={theme} onClick={() => nav({ name: 'approver-review', id: b.id })}>
+            {Icon.back(theme.ink)}
+          </IconBtn>
+        }
+      />
+
+      <div style={{ padding: '14px 20px 0' }}>
+        <Card theme={theme} padding={20}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div>
+              <div
+                style={{
+                  fontFamily: FONT_UI,
+                  fontSize: 11,
+                  color: theme.inkSoft,
+                  letterSpacing: 1.4,
+                  textTransform: 'uppercase',
+                }}
+              >
+                ส่งให้
+              </div>
+              <div style={{ fontFamily: FONT_UI, fontSize: 15, fontWeight: 500, color: theme.ink, marginTop: 4 }}>
+                {b.submitter.name}
+              </div>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: theme.inkSoft, marginTop: 2 }}>
+                •••• 4471 · ไทยพาณิชย์
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div
+                style={{
+                  fontFamily: FONT_UI,
+                  fontSize: 11,
+                  color: theme.inkSoft,
+                  letterSpacing: 1.4,
+                  textTransform: 'uppercase',
+                }}
+              >
+                จำนวนเงิน
+              </div>
+              <div style={{ marginTop: 4 }}>
+                <Money value={total} theme={theme} size={20} accent weight={600} />
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <SectionHeader theme={theme} title="หลักฐานการโอน" />
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFile(f);
+        }}
+      />
+
+      <div style={{ padding: '0 20px' }}>
+        <div
+          onClick={() => fileRef.current?.click()}
+          style={{
+            height: 240,
+            borderRadius: 18,
+            padding: 14,
+            background: theme.surface,
+            border: proofPreview ? 'none' : `1.5px dashed ${theme.hairlineStrong}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          {proofPreview ? (
+            <img
+              src={proofPreview}
+              alt="สลิปโอน"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 12 }}
+            />
+          ) : (
+            <div style={{ textAlign: 'center', color: theme.inkSoft }}>
+              <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
+                {Icon.attach(theme.inkSoft)}
+              </div>
+              <div style={{ fontFamily: FONT_UI, fontSize: 14, fontWeight: 500, color: theme.ink }}>
+                แตะเพื่อแนบสลิป
+              </div>
+              <div style={{ fontFamily: FONT_UI, fontSize: 12, marginTop: 4 }}>จากแอปธนาคาร</div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          <FormRow theme={theme} label="เลขอ้างอิง" value={ref} onChange={setRef} placeholder="SCB-887214-AB" />
+        </div>
+
+        <Card theme={theme} padding={16} style={{ marginTop: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                background: theme.surface2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {Icon.bank(theme.inkSoft)}
+            </div>
+            <div>
+              <div style={{ fontFamily: FONT_UI, fontSize: 13, fontWeight: 500, color: theme.ink, marginBottom: 4 }}>
+                ปิดการอนุมัติ
+              </div>
+              <div style={{ fontFamily: FONT_UI, fontSize: 12, color: theme.inkSoft, lineHeight: 1.5 }}>
+                {b.submitter.name} จะเห็นสลิปในคำขอและได้รับการแจ้งเตือน
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: '24px 20px 28px',
+          background: `linear-gradient(180deg, transparent, ${theme.paper} 25%)`,
+        }}
+      >
+        <PrimaryButton
+          theme={theme}
+          disabled={!proofFile || !ref || submitting}
+          onClick={handleConfirmPay}
+        >
+          {submitting ? 'กำลังบันทึก...' : `ยืนยันการจ่าย · ${fmt(total)}`}
+        </PrimaryButton>
+      </div>
+    </div>
+  );
+}
+

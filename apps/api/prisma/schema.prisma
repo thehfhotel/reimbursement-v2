@@ -1,0 +1,114 @@
+// Prisma schema for the reimbursement app.
+// Migrations and the generated client live alongside this file.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  EMPLOYEE
+  APPROVER
+}
+
+enum BundleStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+model User {
+  id                         String   @id @default(cuid())
+  name                       String
+  team                       String
+  role                       Role     @default(EMPLOYEE)
+  initials                   String
+  lineId                     String?  @unique
+  lineDisplayName            String?
+  linePictureUrl             String?
+  /// 6-digit numeric code an admin generates so the user can bind their LINE id on first login.
+  lineLinkingCode            String?  @unique
+  lineLinkingCodeGeneratedAt DateTime?
+  createdAt                  DateTime @default(now())
+
+  receipts        Receipt[]
+  bundlesOwned    Bundle[]  @relation("submitter")
+  bundlesApproved Bundle[]  @relation("approver")
+  auditEvents     AuditEvent[]
+
+  @@map("users")
+}
+
+model Receipt {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchant   String
+  category   String
+  /// Which property this expense is for. "hf-hotel" or "hf-ville".
+  property   String   @default("hf-hotel")
+  /// Optional unit count (จำนวนชิ้น) — e.g. "4 croissants" — null when not relevant.
+  quantity   Int?
+  amount     Decimal  @db.Decimal(12, 2)
+  date       String   // YYYY-MM-DD as plain string for display fidelity
+  note       String?
+  color      String   @default("#F5EBD9")
+  accent     String   @default("#7E5E3A")
+  items      Json     @default("[]") // ReceiptItem[]
+  tax        String   @default("0")
+  photoPath  String?
+  bundleId   String?
+  bundle     Bundle?  @relation(fields: [bundleId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([bundleId])
+  @@map("receipts")
+}
+
+model Bundle {
+  id                 String       @id @default(cuid())
+  userId             String
+  user               User         @relation("submitter", fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  status             BundleStatus @default(PENDING)
+  submittedAt        DateTime     @default(now())
+  approvedAt         DateTime?
+  approvedById       String?
+  approver           User?        @relation("approver", fields: [approvedById], references: [id], onDelete: SetNull)
+  paidAt             DateTime?
+  transferRef        String?
+  transferAmount     Decimal?     @db.Decimal(12, 2)
+  transferProofPath  String?
+  note               String       @default("")
+  createdAt          DateTime     @default(now())
+
+  receipts     Receipt[]
+  auditEvents  AuditEvent[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("bundles")
+}
+
+model AuditEvent {
+  id        String   @id @default(cuid())
+  type      String   // submit, approve, reject, pay, edit, etc.
+  bundleId  String?
+  bundle    Bundle?  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  actorId   String
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([bundleId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_events")
+}

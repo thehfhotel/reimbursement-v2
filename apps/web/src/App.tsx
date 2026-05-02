@@ -1,0 +1,419 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { AppState, Tweaks, User } from './lib/types';
+import type { Route } from './lib/router';
+import { getTheme } from './lib/theme';
+import {
+  ApiError,
+  DEV_USER_ID_BY_ROLE,
+  api,
+  getAuthToken,
+  getDevUserId,
+  setAuthToken,
+  setDevUserId,
+} from './lib/api';
+import { IOSDevice } from './components/IOSDevice';
+import { Icon } from './components/icons';
+import { TweaksPanel } from './components/TweaksPanel';
+import { Home } from './screens/employee/Home';
+import { Upload } from './screens/employee/Upload';
+import { RecordDetail } from './screens/employee/RecordDetail';
+import { BundleBuilder } from './screens/employee/BundleBuilder';
+import { BundleSubmitted } from './screens/employee/BundleSubmitted';
+import { BundleDetail } from './screens/employee/BundleDetail';
+import { Inbox } from './screens/approver/Inbox';
+import { Review } from './screens/approver/Review';
+import { Pay } from './screens/approver/Pay';
+import { DesktopApprover } from './screens/approver/Desktop';
+import { DesktopEmployee } from './screens/employee/Desktop';
+import { Login } from './screens/auth/Login';
+import { Callback } from './screens/auth/Callback';
+import { LinkAccount } from './screens/auth/LinkAccount';
+import { ManageEmployees } from './screens/approver/ManageEmployees';
+
+const TWEAK_DEFAULTS: Tweaks = {
+  role: 'employee',
+  platform: 'mobile',
+  accent: '#262626',
+  dark: false,
+};
+
+const EMPTY_STATE: AppState = { receipts: [], bundles: [] };
+const IS_DEV = import.meta.env.DEV;
+
+function initialRouteFromUrl(): Route {
+  if (typeof window === 'undefined') return { name: 'home' };
+  const path = window.location.pathname;
+  if (path === '/login') return { name: 'login' };
+  if (path === '/auth/callback') return { name: 'auth-callback' };
+  if (path === '/link-account') return { name: 'link-account' };
+  if (path === '/admin/employees') return { name: 'admin-employees' };
+  return { name: 'home' };
+}
+
+function isPublicAuthRoute(route: Route): boolean {
+  return route.name === 'login' || route.name === 'auth-callback' || route.name === 'link-account';
+}
+
+export function App() {
+  const [tweaks, setTweaks] = useState<Tweaks>(TWEAK_DEFAULTS);
+  const theme = getTheme(tweaks.dark, tweaks.accent);
+
+  const [route, setRoute] = useState<Route>(initialRouteFromUrl);
+  const nav = (r: Route) => setRoute(r);
+
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [state, setState] = useState<AppState>(EMPTY_STATE);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // ── Bootstrap auth + initial data load ──────────────────────────
+  const refetch = useCallback(async (): Promise<void> => {
+    setErrorMessage(null);
+    try {
+      const [receipts, bundles] = await Promise.all([
+        api.receipts.list(),
+        api.bundles.list(),
+      ]);
+      setState({ receipts, bundles });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isPublicAuthRoute(route) || route.name === 'admin-employees') {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+
+    (async () => {
+      try {
+        // Real JWT path: ask /api/auth/me to learn linked status.
+        if (getAuthToken() !== null) {
+          const meResponse = await api.auth.me();
+          if (cancelled) return;
+          if (!meResponse.linked || !meResponse.user) {
+            setRoute({ name: 'link-account' });
+            return;
+          }
+          setCurrentUser(meResponse.user);
+          await refetch();
+          return;
+        }
+
+        // Dev impersonation path: skip OAuth, hit /api/me directly.
+        if (IS_DEV) {
+          if (getDevUserId() === null) {
+            setDevUserId(DEV_USER_ID_BY_ROLE[tweaks.role]);
+          }
+          const me = await api.me();
+          if (cancelled) return;
+          setCurrentUser(me);
+          await refetch();
+          return;
+        }
+
+        // No credentials in production → kick to login.
+        setRoute({ name: 'login' });
+      } catch (error) {
+        if (cancelled) return;
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          setAuthToken(null);
+          setRoute({ name: 'login' });
+          return;
+        }
+        setErrorMessage(error instanceof Error ? error.message : 'Unknown error');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [route, refetch, tweaks.role]);
+
+  // ── URL sync — keep the address bar in step with the route name ─
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const path = pathForRoute(route);
+    if (window.location.pathname !== path) {
+      window.history.replaceState(null, '', path + window.location.search + window.location.hash);
+    }
+  }, [route]);
+
+  // ── Dev role-tweak swap → switch dev user id, reload ─────────────
+  const prevRoleRef = useRef(tweaks.role);
+  useEffect(() => {
+    if (prevRoleRef.current === tweaks.role) return;
+    prevRoleRef.current = tweaks.role;
+    if (IS_DEV && getAuthToken() === null) {
+      setDevUserId(DEV_USER_ID_BY_ROLE[tweaks.role]);
+      // Force a re-bootstrap by nudging the route — same name, new identity.
+      setLoading(true);
+      setRoute(tweaks.role === 'employee' ? { name: 'home' } : { name: 'approver-home' });
+    }
+  }, [tweaks.role]);
+
+  const setTweak = <K extends keyof Tweaks>(key: K, value: Tweaks[K]) => {
+    setTweaks((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const onJump = (target: string) => {
+    const [name, id] = target.split(':');
+    if (!name) return;
+    if (name === 'home') setRoute({ name: 'home' });
+    else if (name === 'upload') setRoute({ name: 'upload' });
+    else if (name === 'bundle-new') setRoute({ name: 'bundle-new' });
+    else if (name === 'bundle' && id) setRoute({ name: 'bundle', id });
+    else if (name === 'approver-home') setRoute({ name: 'approver-home' });
+    else if (name === 'approver-review' && id) setRoute({ name: 'approver-review', id });
+    else if (name === 'approver-pay' && id) setRoute({ name: 'approver-pay', id });
+    else if (name === 'admin-employees') setRoute({ name: 'admin-employees' });
+    else if (name === 'logout') handleLogout();
+  };
+
+  const handleLogout = () => {
+    setAuthToken(null);
+    setDevUserId(null);
+    setCurrentUser(null);
+    setState(EMPTY_STATE);
+    setRoute({ name: 'login' });
+  };
+
+  // ── Public auth screens — no IOSDevice frame, no tweaks panel ────
+  if (route.name === 'login') {
+    return <Login theme={theme} />;
+  }
+  if (route.name === 'auth-callback') {
+    return <Callback nav={nav} theme={theme} />;
+  }
+  if (route.name === 'link-account') {
+    return <LinkAccount nav={nav} theme={theme} />;
+  }
+
+  if (route.name === 'admin-employees') {
+    return (
+      <>
+        <ManageEmployees
+          theme={theme}
+          onBack={() => setRoute({ name: 'approver-home' })}
+        />
+        {IS_DEV && <TweaksPanel tweaks={tweaks} onChange={setTweak} onJump={onJump} />}
+      </>
+    );
+  }
+
+  if (loading) {
+    return <CenteredSpinner background={theme.paper} accent={theme.accent} />;
+  }
+
+  if (errorMessage) {
+    return (
+      <CenteredError
+        background={theme.paper}
+        ink={theme.ink}
+        inkSoft={theme.inkSoft}
+        accent={theme.accent}
+        message={errorMessage}
+        onRetry={() => {
+          setLoading(true);
+          refetch().finally(() => setLoading(false));
+        }}
+      />
+    );
+  }
+
+  const role = currentUser?.role ?? tweaks.role;
+  const screen = renderScreen({ route, theme, state, setState, nav, role });
+  // FAB is mobile-only; desktop home has the explicit + button in the AppBar.
+  const showFab =
+    tweaks.platform === 'mobile' &&
+    role === 'employee' &&
+    (route.name === 'home' || route.name === 'record');
+
+  if (tweaks.platform === 'desktop') {
+    return (
+      <>
+        {role === 'approver' ? (
+          <DesktopApprover
+            theme={theme}
+            state={state}
+            setState={setState}
+            onNavigate={(target) => setRoute({ name: target })}
+          />
+        ) : (
+          <DesktopEmployee theme={theme} state={state} setState={setState} />
+        )}
+        {IS_DEV && <TweaksPanel tweaks={tweaks} onChange={setTweak} onJump={onJump} />}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <IOSDevice dark={tweaks.dark} width={402} height={874}>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: theme.paper,
+            overflow: 'auto',
+          }}
+        >
+          {screen}
+        </div>
+        {showFab && (
+          <button
+            onClick={() => setRoute({ name: 'upload' })}
+            style={{
+              position: 'absolute',
+              bottom: 28,
+              right: 24,
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+              background: theme.accent,
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 12px 28px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.18)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              zIndex: 50,
+            }}
+          >
+            {Icon.camera('#fff')}
+          </button>
+        )}
+      </IOSDevice>
+      {IS_DEV && <TweaksPanel tweaks={tweaks} onChange={setTweak} onJump={onJump} />}
+    </>
+  );
+}
+
+interface RenderArgs {
+  route: Route;
+  theme: ReturnType<typeof getTheme>;
+  state: AppState;
+  setState: (updater: (s: AppState) => AppState) => void;
+  nav: (r: Route) => void;
+  role: Tweaks['role'];
+}
+
+function renderScreen({ route, theme, state, setState, nav, role }: RenderArgs) {
+  if (role === 'employee') {
+    if (route.name === 'home') return <Home theme={theme} state={state} nav={nav} />;
+    if (route.name === 'upload') return <Upload theme={theme} state={state} nav={nav} setState={setState} />;
+    if (route.name === 'record') return <RecordDetail theme={theme} state={state} nav={nav} recordId={route.id} />;
+    if (route.name === 'bundle-new') return <BundleBuilder theme={theme} state={state} nav={nav} setState={setState} />;
+    if (route.name === 'bundle-submitted')
+      return <BundleSubmitted theme={theme} state={state} nav={nav} bundleId={route.id} />;
+    if (route.name === 'bundle') return <BundleDetail theme={theme} state={state} nav={nav} bundleId={route.id} />;
+    return <Home theme={theme} state={state} nav={nav} />;
+  }
+
+  if (route.name === 'approver-home' || route.name === 'home')
+    return <Inbox theme={theme} state={state} nav={nav} />;
+  if (route.name === 'approver-review')
+    return <Review theme={theme} state={state} nav={nav} bundleId={route.id} setState={setState} />;
+  if (route.name === 'approver-pay')
+    return <Pay theme={theme} state={state} nav={nav} bundleId={route.id} setState={setState} />;
+  return <Inbox theme={theme} state={state} nav={nav} />;
+}
+
+function pathForRoute(route: Route): string {
+  switch (route.name) {
+    case 'login':
+      return '/login';
+    case 'auth-callback':
+      return '/auth/callback';
+    case 'link-account':
+      return '/link-account';
+    case 'admin-employees':
+      return '/admin/employees';
+    default:
+      return '/';
+  }
+}
+
+function CenteredSpinner({ background, accent }: { background: string; accent: string }) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          border: `2.5px solid ${accent}`,
+          borderTopColor: 'transparent',
+          animation: 'spin 0.8s linear infinite',
+        }}
+      />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+interface CenteredErrorProps {
+  background: string;
+  ink: string;
+  inkSoft: string;
+  accent: string;
+  message: string;
+  onRetry: () => void;
+}
+
+function CenteredError({ background, ink, inkSoft, accent, message, onRetry }: CenteredErrorProps) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '0 28px',
+        textAlign: 'center',
+      }}
+    >
+      <div style={{ fontFamily: 'Arial, sans-serif', fontSize: 13, color: inkSoft, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>
+        เกิดข้อผิดพลาด
+      </div>
+      <div style={{ fontFamily: 'Arial, sans-serif', fontSize: 16, color: ink, maxWidth: 380, lineHeight: 1.5, marginBottom: 20 }}>
+        {message}
+      </div>
+      <button
+        onClick={onRetry}
+        style={{
+          padding: '10px 22px',
+          background: accent,
+          color: '#fff',
+          border: 'none',
+          borderRadius: 12,
+          fontFamily: 'Arial, sans-serif',
+          fontSize: 14,
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        ลองใหม่
+      </button>
+    </div>
+  );
+}
