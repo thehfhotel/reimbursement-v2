@@ -51,7 +51,7 @@ jobs:
       # ── api image ─────────────────────────────────────────────────────
       - name: Compute api tags
         id: meta-api
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.API_IMAGE }}
           tags: |
@@ -73,7 +73,7 @@ jobs:
       # ── web image ─────────────────────────────────────────────────────
       - name: Compute web tags
         id: meta-web
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.WEB_IMAGE }}
           tags: |
