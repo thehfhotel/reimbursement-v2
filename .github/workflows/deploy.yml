@@ -9,7 +9,7 @@ on:
 # `docker compose up` interleave. cancel-in-progress is OFF — an in-flight
 # deploy already pulled images and may be mid-migration.
 concurrency:
-  group: deploy-reimbursement
+  group: deploy-reimbursement-v2
   cancel-in-progress: false
 
 permissions:
@@ -18,20 +18,13 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  # Image names MUST be lowercase per OCI distribution spec; we publish under
-  # the `thehfhotel` org to match the rest of the fleet (loyalty-app,
-  # new-hotel, room-daily-reporter).
   IMAGE_OWNER: thehfhotel
-  API_IMAGE: thehfhotel/reimbursement-api
-  WEB_IMAGE: thehfhotel/reimbursement-web
+  API_IMAGE: thehfhotel/reimbursement-v2-api
+  WEB_IMAGE: thehfhotel/reimbursement-v2-web
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────
-  # Build the api + web images on a hosted runner and push to GHCR.
-  # We build both images in the same job so a single checkout populates the
-  # build context for both Dockerfiles (the api Dockerfile needs the web
-  # workspace manifests for `bun install --frozen-lockfile`, and vice
-  # versa).
+  # Build the api + web images and push to GHCR.
   # ──────────────────────────────────────────────────────────────────────
   build:
     name: Build & Push (api + web)
@@ -39,7 +32,7 @@ jobs:
     timeout-minutes: 25
 
     outputs:
-      sha: ${{ github.sha }}
+      sha-tag: sha-${{ github.sha }}
 
     steps:
       - name: Checkout
@@ -63,7 +56,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.API_IMAGE }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=sha-,format=short
+            type=sha,prefix=sha-,format=long
 
       - name: Build & push api
         uses: docker/build-push-action@v6
@@ -73,10 +66,8 @@ jobs:
           push: true
           tags: ${{ steps.meta-api.outputs.tags }}
           labels: ${{ steps.meta-api.outputs.labels }}
-          # Distinct cache scopes per image so api/web can't evict each
-          # other's layers.
-          cache-from: type=gha,scope=reimbursement-api
-          cache-to: type=gha,mode=max,scope=reimbursement-api
+          cache-from: type=gha,scope=reimbursement-v2-api
+          cache-to: type=gha,mode=max,scope=reimbursement-v2-api
           platforms: linux/amd64
 
       # ── web image ─────────────────────────────────────────────────────
@@ -87,7 +78,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.WEB_IMAGE }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=sha-,format=short
+            type=sha,prefix=sha-,format=long
 
       - name: Build & push web
         uses: docker/build-push-action@v6
@@ -97,14 +88,14 @@ jobs:
           push: true
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
-          cache-from: type=gha,scope=reimbursement-web
-          cache-to: type=gha,mode=max,scope=reimbursement-web
+          cache-from: type=gha,scope=reimbursement-v2-web
+          cache-to: type=gha,mode=max,scope=reimbursement-v2-web
           platforms: linux/amd64
 
       - name: Summary
         run: |
           {
-            echo "## Reimbursement images"
+            echo "## Reimbursement-v2 images"
             echo ""
             echo "### api"
             echo '```'
@@ -118,61 +109,108 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ──────────────────────────────────────────────────────────────────────
-  # Deploy to evergreen via the self-hosted runner. The runner already lives
-  # on the deploy host, so we don't ssh anywhere — we just write to the
-  # local filesystem and shell out to docker.
+  # Deploy to evergreen via SSH from a GitHub-hosted runner.
+  #
+  # Connection path:  GH-hosted runner → cloudflared (Cloudflare Access
+  # service token) → SSH (deploy user, ed25519 key) → evergreen.
   # ──────────────────────────────────────────────────────────────────────
   deploy:
     name: Deploy to evergreen
-    runs-on: [self-hosted, deploy]
+    runs-on: ubuntu-latest
     needs: [build]
+    environment: production
     timeout-minutes: 15
     permissions:
       contents: read
       packages: read
 
     env:
-      DEPLOY_DIR: /home/nut/reimbursement-production
-      NGINX_DIR: /home/nut/nginx
-      VHOST_FILE: reimbursement.conf
+      SSH_HOST: evergreen.thehfhotel.org
+      SSH_USER: deploy
+      DEPLOY_DIR: /home/deploy/reimbursement-v2-production
 
     steps:
-      - name: Checkout (compose + nginx vhost only)
+      - name: Checkout (compose file only)
         uses: actions/checkout@v4
         with:
           sparse-checkout: |
             docker-compose.production.yml
-            deploy/nginx/reimbursement.conf
           sparse-checkout-cone-mode: false
 
-      - name: Stage compose file
+      - name: Install cloudflared
         run: |
           set -euo pipefail
-          mkdir -p "$DEPLOY_DIR"
-          cp docker-compose.production.yml "$DEPLOY_DIR/docker-compose.yml"
+          curl -fsSL --output /tmp/cloudflared \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          install -m 0755 /tmp/cloudflared /usr/local/bin/cloudflared
+          cloudflared --version
 
-      - name: Materialize .env from secrets
-        # Tighten umask BEFORE writing so .env is born 0600 and never has a
-        # world-readable window. Each var must be non-empty — fail loud if
-        # the operator forgot to set a GitHub Secret.
+      - name: Configure SSH (key + known_hosts + cloudflared ProxyCommand)
         env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          LINE_CHANNEL_ID: ${{ secrets.LINE_CHANNEL_ID }}
-          LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
-          for var in JWT_SECRET LINE_CHANNEL_ID LINE_CHANNEL_SECRET POSTGRES_PASSWORD; do
+          for var in SSH_PRIVATE_KEY SSH_KNOWN_HOSTS CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET; do
             if [ -z "${!var:-}" ]; then
-              echo "::error::required secret $var is empty — refusing to write .env"
+              echo "::error::required secret $var is empty — see DEPLOYMENT.md for setup"
               exit 1
             fi
           done
 
           umask 077
-          cat > "$DEPLOY_DIR/.env" <<EOF
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+          cat > ~/.ssh/config <<EOF
+          Host evergreen
+            HostName ${SSH_HOST}
+            User ${SSH_USER}
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            UserKnownHostsFile ~/.ssh/known_hosts
+            StrictHostKeyChecking yes
+            ServerAliveInterval 15
+            ServerAliveCountMax 3
+            ProxyCommand cloudflared access ssh --hostname %h --service-token-id ${CF_ACCESS_CLIENT_ID} --service-token-secret ${CF_ACCESS_CLIENT_SECRET}
+          EOF
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts ~/.ssh/config
+
+      - name: Smoke-test SSH
+        run: ssh evergreen "echo connected as \$(id -un) on \$(hostname)"
+
+      - name: Sync compose file
+        run: |
+          set -euo pipefail
+          ssh evergreen "mkdir -p ${DEPLOY_DIR}"
+          scp docker-compose.production.yml evergreen:${DEPLOY_DIR}/docker-compose.yml
+
+      - name: Materialize .env from secrets
+        # Keep .env off this runner's disk — it's piped over SSH and written
+        # straight into the deploy host with mode 0600.
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          LINE_CHANNEL_ID: ${{ secrets.LINE_CHANNEL_ID }}
+          LINE_CHANNEL_SECRET: ${{ secrets.LINE_CHANNEL_SECRET }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          IMAGE_TAG: sha-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for var in JWT_SECRET LINE_CHANNEL_ID LINE_CHANNEL_SECRET POSTGRES_PASSWORD; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::required secret $var is empty"
+              exit 1
+            fi
+          done
+
+          # The here-doc is built locally so secrets never appear in shell
+          # invocation logs on the remote host.
+          ssh evergreen "umask 077 && cat > ${DEPLOY_DIR}/.env && chmod 600 ${DEPLOY_DIR}/.env" <<EOF
           NODE_ENV=production
-          IMAGE_TAG=latest
+          IMAGE_TAG=${IMAGE_TAG}
 
           # Postgres
           POSTGRES_USER=postgres
@@ -183,93 +221,53 @@ jobs:
           DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/reimbursement
           JWT_SECRET=${JWT_SECRET}
 
-          # LINE Login (OAuth)
+          # LINE Login
           LINE_CHANNEL_ID=${LINE_CHANNEL_ID}
           LINE_CHANNEL_SECRET=${LINE_CHANNEL_SECRET}
           LINE_REDIRECT_URI=https://reimbursement.thehfhotel.org/auth/line/callback
           WEB_BASE_URL=https://reimbursement.thehfhotel.org
           EOF
-          chmod 600 "$DEPLOY_DIR/.env"
 
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Log in to GHCR (on remote host)
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          ssh evergreen "echo '${GHCR_TOKEN}' | docker login ghcr.io -u '${GHCR_USER}' --password-stdin"
 
-      - name: Ensure shared-nginx network exists
-        # The network is created once when the shared-nginx container is set
-        # up; this is just a defensive no-op if it's already there.
-        run: docker network create shared-nginx 2>/dev/null || true
-
-      - name: Pull images
-        working-directory: ${{ env.DEPLOY_DIR }}
-        run: docker compose pull
-
-      - name: Up the stack
-        working-directory: ${{ env.DEPLOY_DIR }}
+      - name: Pull images and roll out
         run: |
           set -euo pipefail
+          ssh evergreen <<'REMOTE'
+          set -euo pipefail
+          cd /home/deploy/reimbursement-v2-production
+          docker compose pull
           docker compose up -d --remove-orphans
           docker image prune -f
-
-      # First-deploy idempotent setup: drop the vhost into shared-nginx and
-      # reload. Re-runs are a no-op when the file is already in place + the
-      # symlink already points at it.
-      - name: Install shared-nginx vhost (first deploy)
-        run: |
-          set -euo pipefail
-          mkdir -p "$NGINX_DIR/sites-available" "$NGINX_DIR/sites-enabled"
-
-          NEW="$(cat deploy/nginx/reimbursement.conf)"
-          AVAIL="$NGINX_DIR/sites-available/$VHOST_FILE"
-          ENABLED="$NGINX_DIR/sites-enabled/$VHOST_FILE"
-
-          NEEDS_RELOAD=false
-
-          if [ ! -f "$AVAIL" ] || ! printf '%s' "$NEW" | cmp -s - "$AVAIL"; then
-            echo "Writing $AVAIL"
-            printf '%s' "$NEW" > "$AVAIL"
-            NEEDS_RELOAD=true
-          else
-            echo "$AVAIL already up to date"
-          fi
-
-          if [ ! -L "$ENABLED" ]; then
-            echo "Linking $ENABLED -> $AVAIL"
-            ln -sf "$AVAIL" "$ENABLED"
-            NEEDS_RELOAD=true
-          fi
-
-          if [ "$NEEDS_RELOAD" = "true" ]; then
-            # Validate first so a typo never takes the rest of the host's
-            # vhosts down with us.
-            docker exec shared-nginx nginx -t
-            docker exec shared-nginx nginx -s reload
-            echo "shared-nginx reloaded"
-          else
-            echo "shared-nginx vhost unchanged — no reload needed"
-          fi
+          REMOTE
 
       - name: Health check
         run: |
           set -euo pipefail
-
-          # First, the api container's own /health endpoint via `docker exec`
-          # since the api isn't bound to any host port.
+          # api /health via docker exec (the container isn't host-bound)
+          ssh evergreen <<'REMOTE'
+          set -euo pipefail
           for i in $(seq 1 30); do
-            if docker exec reimbursement-api curl -fsS --max-time 3 http://localhost:3001/health >/dev/null 2>&1; then
+            if docker exec reimbursement-v2-api curl -fsS --max-time 3 http://localhost:3001/health >/dev/null 2>&1; then
               echo "api healthy after ${i}s"
               break
             fi
             if [ "$i" = 30 ]; then
               echo "::error::api /health never came up"
-              docker logs --tail=80 reimbursement-api || true
+              docker logs --tail=80 reimbursement-v2-api || true
               exit 1
             fi
             sleep 2
           done
 
-          # Then end-to-end through shared-nginx → web → api.
+          # End-to-end through shared-nginx → web → api on the public URL
           for i in $(seq 1 30); do
-            if curl -fsS --max-time 3 -H "Host: reimbursement.thehfhotel.org" http://127.0.0.1/api/health >/dev/null 2>&1; then
+            if curl -fsS --max-time 5 https://reimbursement.thehfhotel.org/api/health >/dev/null 2>&1; then
               echo "edge-to-api healthy after ${i}s"
               exit 0
             fi
@@ -277,16 +275,17 @@ jobs:
           done
 
           echo "::error::edge-to-api health check failed"
-          docker logs --tail=80 reimbursement-web || true
-          docker logs --tail=80 reimbursement-api || true
+          docker logs --tail=80 reimbursement-v2-web || true
+          docker logs --tail=80 reimbursement-v2-api || true
           exit 1
+          REMOTE
 
-      - name: Deployment summary
+      - name: Summary
         run: |
           {
-            echo "## Reimbursement deployed"
+            echo "## Reimbursement-v2 deployed"
             echo ""
             echo "- Commit: \`${{ github.sha }}\`"
-            echo "- Image tag: \`latest\` (also \`sha-${GITHUB_SHA::7}\`)"
+            echo "- Image tag: \`sha-${{ github.sha }}\` (pinned in .env on host)"
             echo "- URL: https://reimbursement.thehfhotel.org"
           } >> "$GITHUB_STEP_SUMMARY"

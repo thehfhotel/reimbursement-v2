@@ -1,181 +1,208 @@
-# Reimbursement — Production Deployment
+# Deployment
 
-This repo deploys to the **evergreen** Ubuntu host
-(`evergreen.thehfhotel.org`) at https://reimbursement.thehfhotel.org via the
-fleet's standard GitHub Actions pattern: GHCR images + a self-hosted runner +
-the host-level `shared-nginx` reverse proxy.
-
-## What gets shipped
-
-Two images, built by `.github/workflows/deploy.yml` on every push to `main`:
-
-- `ghcr.io/thehfhotel/reimbursement-api:latest` (and `:sha-<short>`)
-  Bun + Elysia + Prisma server, listens on `:3001` inside its container.
-- `ghcr.io/thehfhotel/reimbursement-web:latest` (and `:sha-<short>`)
-  Vite SPA served from `nginx:alpine`, with `/api/` and `/uploads/`
-  reverse-proxied to the api container.
-
-Plus one stateful service in the production compose:
-
-- `postgres:16-alpine` — internal-only, no host port mapping. Data lives in
-  the named volume `reimbursement_postgres_data`.
+How `reimbursement-v2` ships from `main` → `https://reimbursement.thehfhotel.org`.
 
 ## Topology
 
 ```
-Cloudflare Tunnel → evergreen :80 → shared-nginx
-                                    │  vhost: reimbursement.thehfhotel.org
-                                    ▼
-                              reimbursement-web (nginx:alpine)
-                                    │  /api/, /uploads/  →  api:3001
-                                    ▼
-                              reimbursement-api (bun)
-                                    │  prisma  →  postgres:5432
-                                    ▼
-                              reimbursement-postgres
+GitHub Actions (ubuntu-latest)
+    │
+    │ 1. build api+web → push to ghcr.io
+    │
+    │ 2. ssh to evergreen via cloudflared (Cloudflare Access service token)
+    │
+    ▼
+evergreen (Ubuntu)
+  ├── deploy user        — owns ~/reimbursement-v2-production/, in docker group
+  │     └── ~/reimbursement-v2-production/{docker-compose.yml, .env}
+  │
+  ├── docker daemon
+  │     ├── reimbursement-v2-postgres   (private network only)
+  │     ├── reimbursement-v2-api        (private network only)
+  │     └── reimbursement-v2-web        (private + shared-nginx network)
+  │
+  └── shared-nginx                       (host operator's existing container)
+        └── proxy_pass http://reimbursement-v2-web;
+              ▲
+              │ reimbursement.thehfhotel.org
+              │
+        Cloudflare Tunnel → public internet
 ```
 
-The api container is **not** attached to the `shared-nginx` network — only
-the web container is. That means the api is reachable only through the web
-container's reverse proxy.
+## Repo secrets (Settings → Secrets and variables → Actions)
 
-## What the workflow does
-
-1. **build** (on `ubuntu-latest`):
-   - Logs in to GHCR with `${{ secrets.GITHUB_TOKEN }}`.
-   - Builds and pushes both images with cache-from/cache-to via GitHub
-     Actions cache.
-2. **deploy** (on `[self-hosted, deploy]`, runs on evergreen itself):
-   - Sparse-checkouts only `docker-compose.production.yml` and
-     `deploy/nginx/reimbursement.conf`.
-   - Writes `~/reimbursement-production/.env` from GitHub Secrets (file
-     mode 600).
-   - `docker compose pull` then `docker compose up -d --remove-orphans`.
-   - Idempotently installs the `shared-nginx` vhost into
-     `~/nginx/sites-available/reimbursement.conf` and symlinks it into
-     `sites-enabled`. Reloads `shared-nginx` only if the file changed.
-   - Probes `reimbursement-api`'s `/health` endpoint and then probes
-     end-to-end through shared-nginx.
-
-## GitHub Secrets you must set
-
-These power the `Materialize .env from secrets` step. Set them under
-**Settings → Secrets and variables → Actions** on the repo:
-
-| Secret name           | What it is                                                      |
-| --------------------- | --------------------------------------------------------------- |
-| `JWT_SECRET`          | 32+ char random string. `openssl rand -base64 48` works.        |
-| `LINE_CHANNEL_ID`     | LINE Login channel ID (numeric).                                |
-| `LINE_CHANNEL_SECRET` | LINE Login channel secret.                                      |
-| `POSTGRES_PASSWORD`   | Password for the `postgres` superuser inside the prod database. |
-
-Static (non-secret) values that are baked into the workflow's `.env` writer:
-`POSTGRES_USER=postgres`, `POSTGRES_DB=reimbursement`, `NODE_ENV=production`,
-`LINE_REDIRECT_URI=https://reimbursement.thehfhotel.org/auth/line/callback`,
-`WEB_BASE_URL=https://reimbursement.thehfhotel.org`.
+| Secret | Purpose |
+|---|---|
+| `SSH_PRIVATE_KEY` | ed25519 private key for `deploy@evergreen` |
+| `SSH_KNOWN_HOSTS` | output of `ssh-keyscan -t ed25519 evergreen.thehfhotel.org` |
+| `CF_ACCESS_CLIENT_ID` | Cloudflare Access service token id |
+| `CF_ACCESS_CLIENT_SECRET` | Cloudflare Access service token secret |
+| `JWT_SECRET` | App JWT signing key — `openssl rand -base64 48` |
+| `LINE_CHANNEL_ID` | LINE Login channel id (shared with fingerprint-time-logger: `2007782520`) |
+| `LINE_CHANNEL_SECRET` | LINE Login channel secret |
+| `POSTGRES_PASSWORD` | Strong DB password — `openssl rand -base64 32` |
 
 ## First-time setup
 
-These are one-time manual steps, separate from the workflow:
-
-1. **DNS**: `reimbursement.thehfhotel.org` must resolve to the Cloudflare
-   Tunnel that fronts evergreen. Verify with
-   `dig reimbursement.thehfhotel.org`.
-2. **LINE Developers Console**: add the production callback URL
-   `https://reimbursement.thehfhotel.org/auth/line/callback` to the LINE
-   Login channel. Without this LINE will reject the OAuth handshake with
-   `invalid_request: redirect_uri does not match`.
-3. **GitHub Secrets**: set the four secrets in the table above.
-4. **First push to `main`** triggers the build + deploy. The workflow drops
-   the nginx vhost in place and reloads `shared-nginx` automatically.
-
-## Where logs live
+### 1. Create the deploy SSH key (on your laptop)
 
 ```bash
-# Application + nginx (web container) logs
-docker logs reimbursement-api
-docker logs reimbursement-web
-docker logs reimbursement-postgres
+ssh-keygen -t ed25519 -N '' -f ~/.ssh/reimbursement-v2-deploy \
+  -C 'gh-actions deploy@reimbursement-v2'
 
-# Host-level shared-nginx access/error logs for this vhost
-docker exec shared-nginx tail -f /var/log/nginx/reimbursement-access.log
-docker exec shared-nginx tail -f /var/log/nginx/reimbursement-error.log
+cat ~/.ssh/reimbursement-v2-deploy.pub   # → goes to evergreen (next step)
+cat ~/.ssh/reimbursement-v2-deploy       # → goes into SSH_PRIVATE_KEY secret
 ```
 
-The deploy directory on evergreen is `~/reimbursement-production/`; it
-holds only `docker-compose.yml` and `.env`, never source.
+### 2. Provision the deploy user on evergreen
 
-## Manual operations
-
-### Run a Prisma migration by hand
-
-The api container runs `prisma migrate deploy` on every start
-(`apps/api/docker-entrypoint.sh`). If you ever need to invoke it manually:
+Copy `deploy/evergreen-setup.sh` to evergreen, then run as root:
 
 ```bash
-docker exec reimbursement-api bunx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
-
-# Or if you want the db push escape hatch (dev-style sync, no migration files):
-docker exec reimbursement-api bunx prisma db push --schema=apps/api/prisma/schema.prisma
+scp deploy/evergreen-setup.sh evergreen:/tmp/
+ssh evergreen
+sudo DEPLOY_SSH_PUBKEY='ssh-ed25519 AAAA… gh-actions deploy@reimbursement-v2' \
+  bash /tmp/evergreen-setup.sh
 ```
 
-To open an interactive psql against the prod database (postgres has no host
-port mapping in production):
+The script is idempotent — re-run it any time you need to add a second
+authorized key or recreate the app directory.
+
+### 3. Pin the host key
 
 ```bash
-docker exec -it reimbursement-postgres psql -U postgres -d reimbursement
+ssh-keyscan -t ed25519 evergreen.thehfhotel.org > /tmp/evergreen-known-host
+cat /tmp/evergreen-known-host   # paste into the SSH_KNOWN_HOSTS GitHub secret
 ```
 
-### Roll back to a previous build
+### 4. Cloudflare Access service token
 
-Every build pushes a `:sha-<short>` tag in addition to `:latest`. To roll
-back, edit `~/reimbursement-production/.env` on evergreen and set
-`IMAGE_TAG=sha-<short>` to the SHA you want, then:
+In the Cloudflare Zero Trust dashboard:
+
+1. **Access → Service Auth → Service Tokens** → *Create Service Token*. Name
+   it `gh-actions-reimbursement-v2`. Save `Client ID` and `Client Secret`
+   (the secret is shown once).
+2. **Access → Applications** → open the SSH application that fronts
+   `evergreen.thehfhotel.org` (the one your laptop already uses). Add a
+   policy:
+   - **Action**: `Service Auth`
+   - **Include**: `Service Token` → `gh-actions-reimbursement-v2`
+3. Drop both values into GitHub secrets as `CF_ACCESS_CLIENT_ID` and
+   `CF_ACCESS_CLIENT_SECRET`.
+
+### 5. LINE Developers console — register the new redirect URIs
+
+The channel is shared with `fingerprint-time-logger` (channel id
+`2007782520`). Add these callback URLs:
+
+- `http://localhost:5173/auth/line/callback` (local dev)
+- `https://reimbursement.thehfhotel.org/auth/line/callback` (prod)
+
+### 6. DNS
+
+Point `reimbursement.thehfhotel.org` at the existing Cloudflare Tunnel that
+fronts evergreen — same way the rest of the fleet is exposed.
+
+### 7. First-deploy nginx vhost
+
+The deploy user can't write to the host operator's `~/nginx`. As the
+operator, **once**:
 
 ```bash
-cd ~/reimbursement-production
+# On evergreen, as the user that owns the shared-nginx config (e.g. nut)
+curl -fsSL https://raw.githubusercontent.com/thehfhotel/reimbursement-v2/main/deploy/nginx/reimbursement.conf \
+  -o ~/nginx/sites-available/reimbursement.conf
+ln -sf ~/nginx/sites-available/reimbursement.conf ~/nginx/sites-enabled/reimbursement.conf
+
+docker exec shared-nginx nginx -t   # validate
+docker exec shared-nginx nginx -s reload
+```
+
+Subsequent deploys don't change the vhost (the `proxy_pass` target is the
+stable container name `reimbursement-v2-web`).
+
+### 8. Trigger the first deploy
+
+```bash
+git push origin main
+```
+
+Watch the run at <https://github.com/thehfhotel/reimbursement-v2/actions>.
+
+## Day-2 operations
+
+### Manual migration
+
+The api container's entrypoint runs `prisma migrate deploy` on boot. To
+apply schema changes outside of a deploy:
+
+```bash
+ssh evergreen 'docker exec reimbursement-v2-api bunx prisma migrate deploy'
+```
+
+### Inspect prod data
+
+```bash
+ssh evergreen 'docker exec -it reimbursement-v2-postgres psql -U postgres -d reimbursement'
+```
+
+### Rollback
+
+Each deploy pins `IMAGE_TAG=sha-<commit>` in `~/reimbursement-v2-production/.env`
+on evergreen. To roll back, edit that file, change `IMAGE_TAG=` to the
+previous sha, then:
+
+```bash
+ssh evergreen <<'SH'
+cd ~/reimbursement-v2-production
 docker compose pull
-docker compose up -d
+docker compose up -d --remove-orphans
+SH
 ```
 
-To restore the rolling pointer once the issue is fixed, set
-`IMAGE_TAG=latest` (or just delete the line, since the compose default is
-`latest`) and re-run the deploy workflow.
+### Logs
+
+```bash
+ssh evergreen 'docker logs --tail=200 -f reimbursement-v2-api'
+ssh evergreen 'docker logs --tail=200 -f reimbursement-v2-web'
+ssh evergreen 'docker logs --tail=200 -f reimbursement-v2-postgres'
+```
 
 ### Backups
 
-`postgres_data` is the only stateful Docker volume that matters. A simple
-nightly dump:
-
 ```bash
-docker exec reimbursement-postgres pg_dump -U postgres reimbursement \
-    | gzip > ~/backups/reimbursement-$(date +%F).sql.gz
+ssh evergreen <<'SH'
+ts=$(date -u +%Y%m%dT%H%M%SZ)
+mkdir -p ~/backups/reimbursement-v2
+docker run --rm \
+  -v reimbursement_v2_postgres_data:/data:ro \
+  -v ~/backups/reimbursement-v2:/out \
+  alpine tar -czf /out/postgres-${ts}.tar.gz -C /data .
+docker run --rm \
+  -v reimbursement_v2_uploads_data:/data:ro \
+  -v ~/backups/reimbursement-v2:/out \
+  alpine tar -czf /out/uploads-${ts}.tar.gz -C /data .
+SH
 ```
 
-`uploads_data` (receipt photos, transfer screenshots) should also be backed
-up — it's a docker volume, so `docker run --rm -v reimbursement_uploads_data:/v -v $PWD:/out alpine tar czf /out/uploads-$(date +%F).tar.gz -C /v .`
-is enough for an offsite copy.
+Wire into cron / systemd-timer on evergreen for automatic snapshots.
 
-## Rolling back the nginx vhost
+## Why this shape
 
-The deploy job writes the vhost only when its content changes, so simply
-reverting the change in `deploy/nginx/reimbursement.conf` and pushing to
-`main` will re-emit the file. To take the vhost down entirely without a
-deploy:
-
-```bash
-ssh evergreen "rm ~/nginx/sites-enabled/reimbursement.conf && docker exec shared-nginx nginx -s reload"
-```
-
-## Troubleshooting
-
-- **502 from the edge** — usually the api container is unhealthy or not on
-  the `reimbursement_internal` network. `docker compose ps` and
-  `docker logs reimbursement-api`.
-- **`prisma migrate deploy` fails on startup** — schema drift. The
-  entrypoint exits non-zero, so the api container won't serve traffic.
-  Inspect with `docker logs reimbursement-api` and either ship the missing
-  migration or run `prisma migrate resolve` against the prod DB.
-- **LINE login redirects to `invalid_request`** — `LINE_REDIRECT_URI` in
-  the LINE Developers Console must exactly match the value baked into
-  `.env`. Re-add the callback URL on the LINE side, no redeploy needed.
+- **GH-hosted runner + SSH** instead of a self-hosted runner: no long-lived
+  agent on evergreen, no daemon to keep updated, blast radius of a
+  compromised workflow run is "what `deploy@evergreen` can do inside the
+  docker socket" — not host-level.
+- **Cloudflare Access service token** instead of opening SSH to the
+  internet: zero net-new attack surface. Same Access policy that lets your
+  laptop in lets the workflow in.
+- **Pinned host key**: protects against an evil cloudflared / man-in-tunnel
+  swapping the host.
+- **`umask 077` + `chmod 600` on `.env`**: secrets never have a
+  world-readable window on either the runner or evergreen.
+- **Image tags pinned by sha** on the deploy host: rollback is "edit one
+  line, `docker compose up -d`" — no need to re-run a workflow.
+- **No host port for the api**: api is reachable only via the web
+  container's nginx, which is reachable only via shared-nginx, which is
+  fronted by Cloudflare. Three layers between the public internet and the
+  api process.

@@ -2,22 +2,22 @@
 #
 # Topology:
 #
-#   shared-nginx (host 80/443) ──▶ reimbursement-web ──▶ reimbursement-api
+#   shared-nginx (host 80/443) ──▶ reimbursement-v2-web ──▶ reimbursement-v2-api
 #                                              │              │
 #                                              └─ both on ───┘
-#                                              reimbursement_internal
+#                                              reimbursement_v2_internal
 #                                                                │
-#                                                          reimbursement-postgres
+#                                                          reimbursement-v2-postgres
 #                                                          (internal-only)
 #
 # The host-level shared-nginx vhost (`deploy/nginx/reimbursement.conf`) does
-# `proxy_pass http://reimbursement-web;` over the external `shared-nginx`
+# `proxy_pass http://reimbursement-v2-web;` over the external `shared-nginx`
 # network. The api container is NOT attached to shared-nginx — only the web
 # container is — so the api is reachable only via the web nginx proxy.
 #
 # Postgres has no host port mapping in production. To inspect prod data, exec
 # into the postgres container directly:
-#     docker exec -it reimbursement-postgres psql -U postgres -d reimbursement
+#     docker exec -it reimbursement-v2-postgres psql -U postgres -d reimbursement
 #
 # All secrets come from `.env` (materialized by the GitHub Actions deploy job
 # from repo Secrets). Do NOT bake any secret defaults into this file.
@@ -25,7 +25,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: reimbursement-postgres
+    container_name: reimbursement-v2-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -34,7 +34,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - reimbursement_internal
+      - reimbursement_v2_internal
     healthcheck:
       test:
         - CMD-SHELL
@@ -45,8 +45,8 @@ services:
       start_period: 10s
 
   api:
-    image: ghcr.io/thehfhotel/reimbursement-api:${IMAGE_TAG:-latest}
-    container_name: reimbursement-api
+    image: ghcr.io/thehfhotel/reimbursement-v2-api:${IMAGE_TAG:-latest}
+    container_name: reimbursement-v2-api
     restart: unless-stopped
     # No host port binding — only reachable through the web container's nginx.
     environment:
@@ -66,7 +66,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - reimbursement_internal
+      - reimbursement_v2_internal
     healthcheck:
       test:
         - CMD-SHELL
@@ -77,8 +77,8 @@ services:
       start_period: 30s
 
   web:
-    image: ghcr.io/thehfhotel/reimbursement-web:${IMAGE_TAG:-latest}
-    container_name: reimbursement-web
+    image: ghcr.io/thehfhotel/reimbursement-v2-web:${IMAGE_TAG:-latest}
+    container_name: reimbursement-v2-web
     restart: unless-stopped
     # No host port — shared-nginx fronts this container by name on the
     # `shared-nginx` external network.
@@ -86,7 +86,7 @@ services:
       api:
         condition: service_healthy
     networks:
-      - reimbursement_internal
+      - reimbursement_v2_internal
       - shared-nginx
     healthcheck:
       test:
@@ -99,14 +99,14 @@ services:
 
 volumes:
   postgres_data:
-    name: reimbursement_postgres_data
+    name: reimbursement_v2_postgres_data
   uploads_data:
-    name: reimbursement_uploads_data
+    name: reimbursement_v2_uploads_data
 
 networks:
   # Per-app private network: web ↔ api ↔ postgres.
-  reimbursement_internal:
-    name: reimbursement_internal
+  reimbursement_v2_internal:
+    name: reimbursement_v2_internal
     driver: bridge
   # Pre-existing external bridge maintained on the host. Apps that want a
   # public hostname attach to it; the shared-nginx container resolves
