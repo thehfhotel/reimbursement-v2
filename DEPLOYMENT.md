@@ -37,9 +37,9 @@ The port is bound to the loopback so it's reachable only via the tunnel.
 | Secret | Purpose |
 |---|---|
 | `SSH_PRIVATE_KEY` | ed25519 private key for `deploy@evergreen` |
-| `SSH_KNOWN_HOSTS` | output of `ssh-keyscan -t ed25519 evergreen.thehfhotel.org` |
-| `CF_ACCESS_CLIENT_ID` | Cloudflare Access service token id |
-| `CF_ACCESS_CLIENT_SECRET` | Cloudflare Access service token secret |
+| `SSH_KNOWN_HOSTS` | host key — `evergreen.thehfhotel.org ssh-ed25519 …` |
+| `CF_ACCESS_CLIENT_ID` | *(optional)* Cloudflare Access service token id, only if the evergreen SSH tunnel has an Access app |
+| `CF_ACCESS_CLIENT_SECRET` | *(optional)* Cloudflare Access service token secret |
 | `JWT_SECRET` | App JWT signing key — `openssl rand -base64 48` |
 | `LINE_CHANNEL_ID` | LINE Login channel id — **reuse the legacy reimbursement app's** (`2008209394`); the callback URL `/api/auth/callback/line` is already registered |
 | `LINE_CHANNEL_SECRET` | LINE Login channel secret for the same channel |
@@ -78,20 +78,29 @@ ssh-keyscan -t ed25519 evergreen.thehfhotel.org > /tmp/evergreen-known-host
 cat /tmp/evergreen-known-host   # paste into the SSH_KNOWN_HOSTS GitHub secret
 ```
 
-### 4. Cloudflare Access service token
+### 4. Cloudflare Access service token *(optional)*
 
-In the Cloudflare Zero Trust dashboard:
+The evergreen SSH cloudflared tunnel currently has no Access app enforcing
+auth — any client that can reach the tunnel hostname is routed through, and
+authentication is the SSH server's responsibility (key-based). The
+`cloudflared access ssh --hostname %h` ProxyCommand works without
+credentials in this mode.
 
-1. **Access → Service Auth → Service Tokens** → *Create Service Token*. Name
-   it `gh-actions-reimbursement-v2`. Save `Client ID` and `Client Secret`
-   (the secret is shown once).
-2. **Access → Applications** → open the SSH application that fronts
-   `evergreen.thehfhotel.org` (the one your laptop already uses). Add a
-   policy:
-   - **Action**: `Service Auth`
-   - **Include**: `Service Token` → `gh-actions-reimbursement-v2`
-3. Drop both values into GitHub secrets as `CF_ACCESS_CLIENT_ID` and
-   `CF_ACCESS_CLIENT_SECRET`.
+If you later add an Access app for `evergreen.thehfhotel.org` of type SSH:
+
+1. Cloudflare Zero Trust → **Access → Service Auth → Service Tokens** →
+   *Create Service Token*. Name it `gh-actions-reimbursement-v2`.
+2. **Access → Applications** → open the SSH app → *Policies* → add a policy
+   with action `Service Auth`, including the new token.
+3. Set the two GitHub secrets:
+   ```bash
+   printf '%s' '<client-id>'     | gh secret set CF_ACCESS_CLIENT_ID --repo thehfhotel/reimbursement-v2
+   printf '%s' '<client-secret>' | gh secret set CF_ACCESS_CLIENT_SECRET --repo thehfhotel/reimbursement-v2
+   ```
+
+The deploy workflow auto-detects whether the secrets are set; if both are
+present it includes them in the cloudflared ProxyCommand, otherwise it
+runs without.
 
 ### 5. LINE Developers console
 

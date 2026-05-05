@@ -149,11 +149,15 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          # Optional Cloudflare Access service token. Only needed if the
+          # evergreen SSH cloudflared tunnel has an Access app enforcing
+          # auth. If unset, cloudflared routes through the tunnel without
+          # presenting headers — relying on SSH key auth for security.
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
-          for var in SSH_PRIVATE_KEY SSH_KNOWN_HOSTS CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET; do
+          for var in SSH_PRIVATE_KEY SSH_KNOWN_HOSTS; do
             if [ -z "${!var:-}" ]; then
               echo "::error::required secret $var is empty — see DEPLOYMENT.md for setup"
               exit 1
@@ -164,6 +168,14 @@ jobs:
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+          # Build the ProxyCommand. If a service token is configured, include
+          # it; otherwise cloudflared just routes through the tunnel.
+          if [ -n "${CF_ACCESS_CLIENT_ID:-}" ] && [ -n "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
+            PROXY="cloudflared access ssh --hostname %h --service-token-id ${CF_ACCESS_CLIENT_ID} --service-token-secret ${CF_ACCESS_CLIENT_SECRET}"
+          else
+            PROXY="cloudflared access ssh --hostname %h"
+          fi
 
           cat > ~/.ssh/config <<EOF
           Host evergreen
@@ -185,7 +197,7 @@ jobs:
             HostbasedAuthentication no
             GSSAPIAuthentication no
             BatchMode yes
-            ProxyCommand cloudflared access ssh --hostname %h --service-token-id ${CF_ACCESS_CLIENT_ID} --service-token-secret ${CF_ACCESS_CLIENT_SECRET}
+            ProxyCommand ${PROXY}
           EOF
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts ~/.ssh/config
 
