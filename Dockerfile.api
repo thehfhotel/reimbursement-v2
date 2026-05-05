@@ -93,6 +93,11 @@ COPY --from=build /app/apps/api/src/generated ./apps/api/src/generated
 COPY apps/api/prisma ./apps/api/prisma
 COPY apps/api/prisma.config.ts ./apps/api/prisma.config.ts
 
+# One-off operational scripts (CSV imports, data migrations, etc.). Run via
+#   docker run … bun run scripts/<name>.ts
+# Not part of the server start path — the entrypoint never invokes these.
+COPY apps/api/scripts ./apps/api/scripts
+
 # Uploads directory — receipt photos and transfer screenshots persist here
 # via the named volume mounted by docker-compose.production.yml.
 RUN mkdir -p /app/apps/api/uploads

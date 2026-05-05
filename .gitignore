@@ -52,3 +52,4 @@ apps/api/uploads/*
 CLAUDE.local.md
 /Private & Shared*/
 
+out/
