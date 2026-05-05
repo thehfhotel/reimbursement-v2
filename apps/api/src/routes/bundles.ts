@@ -56,7 +56,7 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
 
       return bundles.map((bundle) => ({
         ...serializeBundle(bundle),
-        submitter: { name: bundle.user.name, team: bundle.user.team },
+        submitter: { name: bundle.user.name },
       }));
     },
     {

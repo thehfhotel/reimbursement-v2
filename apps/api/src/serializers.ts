@@ -51,7 +51,6 @@ export function serializeUser(user: PrismaUser): SharedUser {
   return {
     id: user.id,
     name: user.name,
-    team: user.team,
     role: roleToShared(user.role),
     initials: user.initials,
     lineId: user.lineId,
@@ -105,7 +104,7 @@ export function serializeBundleWithDetails(
   return {
     ...serializeBundle(bundle),
     receipts: bundle.receipts.map(serializeReceipt),
-    submitter: { name: bundle.user.name, team: bundle.user.team },
+    submitter: { name: bundle.user.name },
   };
 }
 

@@ -91,7 +91,7 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
               .join('')}
             size={22}
           />
-          {b.submitter.name} · {b.submitter.team}
+          {b.submitter.name}
         </div>
       </div>
 

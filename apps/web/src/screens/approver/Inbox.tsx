@@ -185,7 +185,7 @@ function ApproverBundleRow({ bundle, theme, onClick }: ApproverBundleRowProps) {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: FONT_UI, fontSize: 11, color: theme.inkSoft, fontWeight: 500 }}>
-            {bundle.submitter.name} · {bundle.submitter.team}
+            {bundle.submitter.name}
           </div>
           <div
             style={{

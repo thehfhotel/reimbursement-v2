@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { ApiError, api } from '../../lib/api';
 import { formatThaiDate } from '../../lib/format';
@@ -75,13 +75,6 @@ export function ManageEmployees({ theme, onBack }: ManageEmployeesProps): JSX.El
     setToast({ id: Date.now(), text, tone: 'info' });
   };
 
-  const teamSuggestions = useMemo(() => {
-    const set = new Set<string>();
-    users.forEach((u) => {
-      if (u.team) set.add(u.team);
-    });
-    return Array.from(set).sort();
-  }, [users]);
 
   const upsertUser = (next: AdminUser): void => {
     setUsers((prev) => {
@@ -234,7 +227,6 @@ export function ManageEmployees({ theme, onBack }: ManageEmployeesProps): JSX.El
         <UserFormModal
           theme={theme}
           mode="create"
-          teamSuggestions={teamSuggestions}
           onClose={() => setCreateOpen(false)}
           onSubmit={(req) => void handleCreate(req)}
         />
@@ -245,7 +237,6 @@ export function ManageEmployees({ theme, onBack }: ManageEmployeesProps): JSX.El
           theme={theme}
           mode="edit"
           initial={editing}
-          teamSuggestions={teamSuggestions}
           onClose={() => setEditing(null)}
           onSubmit={(req) => void handleEdit(editing.id, req)}
         />
@@ -605,7 +596,7 @@ function UserRow({
           {user.name}
         </div>
         <div style={{ fontSize: 11, color: theme.inkSoft, marginTop: 2 }}>
-          {user.team || '—'} · {roleLabel}
+          {roleLabel}
         </div>
       </div>
       <LineStatusCell
@@ -900,7 +891,6 @@ interface UserFormModalProps {
   theme: Theme;
   mode: 'create' | 'edit';
   initial?: AdminUser;
-  teamSuggestions: string[];
   onClose: () => void;
   onSubmit: (req: CreateUserRequest) => void;
 }
@@ -909,21 +899,12 @@ function UserFormModal({
   theme,
   mode,
   initial,
-  teamSuggestions,
   onClose,
   onSubmit,
 }: UserFormModalProps): JSX.Element {
   const [name, setName] = useState(initial?.name ?? '');
-  const [team, setTeam] = useState(initial?.team ?? '');
   const [initials, setInitials] = useState(initial?.initials ?? '');
   const [role, setRole] = useState<Role>(initial?.role ?? 'employee');
-  const [showSuggestions, setShowSuggestions] = useState(false);
-
-  const filteredSuggestions = useMemo(() => {
-    const q = team.trim().toLowerCase();
-    if (!q) return teamSuggestions;
-    return teamSuggestions.filter((t) => t.toLowerCase().includes(q) && t !== team);
-  }, [team, teamSuggestions]);
 
   const canSubmit = name.trim().length > 0 && initials.trim().length > 0;
 
@@ -931,7 +912,6 @@ function UserFormModal({
     if (!canSubmit) return;
     onSubmit({
       name: name.trim(),
-      team: team.trim(),
       initials: initials.trim(),
       role,
     });
@@ -953,64 +933,6 @@ function UserFormModal({
 
       <ModalField theme={theme} label="ชื่อ-นามสกุล" required>
         <ModalInput theme={theme} value={name} onChange={setName} placeholder="นที รัตนพงศ์" />
-      </ModalField>
-
-      <ModalField theme={theme} label="ทีม">
-        <div style={{ position: 'relative' }}>
-          <ModalInput
-            theme={theme}
-            value={team}
-            onChange={setTeam}
-            placeholder="แม่บ้าน"
-            onFocus={() => setShowSuggestions(true)}
-            onBlur={() => window.setTimeout(() => setShowSuggestions(false), 120)}
-          />
-          {showSuggestions && filteredSuggestions.length > 0 && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                marginTop: 4,
-                background: theme.surface,
-                borderRadius: 10,
-                border: `0.5px solid ${theme.hairlineStrong}`,
-                boxShadow: '0 12px 30px rgba(0,0,0,0.12)',
-                padding: 4,
-                zIndex: 5,
-                maxHeight: 180,
-                overflowY: 'auto',
-              }}
-            >
-              {filteredSuggestions.map((t) => (
-                <button
-                  key={t}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    setTeam(t);
-                    setShowSuggestions(false);
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '8px 10px',
-                    background: 'transparent',
-                    border: 'none',
-                    borderRadius: 6,
-                    fontFamily: FONT_UI,
-                    fontSize: 13,
-                    color: theme.ink,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
       </ModalField>
 
       <ModalField theme={theme} label="อักษรย่อ">

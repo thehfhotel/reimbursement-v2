@@ -258,25 +258,6 @@ function SidebarContent({
           textTransform: 'uppercase',
         }}
       >
-        ทีม
-      </div>
-      <SidebarItem theme={theme} label="ฝ่ายโรงแรม" sub="ทุกฝ่าย" />
-      <SidebarItem theme={theme} label="แม่บ้าน" />
-      <SidebarItem theme={theme} label="ครัว" />
-      <SidebarItem theme={theme} label="วิศวกรรม" />
-
-      <div style={{ height: 16 }} />
-      <div
-        style={{
-          padding: '6px 16px 6px',
-          fontFamily: FONT_UI,
-          fontSize: 10,
-          fontWeight: 600,
-          color: theme.inkSofter,
-          letterSpacing: 1.2,
-          textTransform: 'uppercase',
-        }}
-      >
         การจัดการ
       </div>
       <SidebarItem
@@ -450,7 +431,7 @@ function BundleListRow({ theme, bundle, sum, isSelected, onClick }: BundleListRo
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
         <div style={{ fontFamily: FONT_UI, fontSize: 11, color: theme.inkSoft, fontWeight: 500 }}>
-          {bundle.submitter.name} · {bundle.submitter.team}
+          {bundle.submitter.name}
         </div>
         <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: theme.inkSofter }}>
           {formatThaiDate(bundle.submittedAt)}
@@ -565,7 +546,7 @@ function DesktopDetail({
             >
               {initials}
             </div>
-            {bundle.submitter.name} · {bundle.submitter.team} · ส่งเมื่อ {formatThaiDate(bundle.submittedAt)}
+            {bundle.submitter.name} · ส่งเมื่อ {formatThaiDate(bundle.submittedAt)}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>

@@ -56,7 +56,6 @@ export type BundleStatus = 'draft' | 'pending' | 'approved' | 'paid' | 'rejected
 
 export interface Submitter {
   name: string;
-  team: string;
 }
 
 export interface Bundle {
@@ -81,7 +80,6 @@ export type Role = 'employee' | 'approver';
 export interface User {
   id: string;
   name: string;
-  team: string;
   role: Role;
   /** Initials for avatar (e.g. "มย"). */
   initials: string;
@@ -102,7 +100,6 @@ export interface AdminUser extends User {
 
 export interface CreateUserRequest {
   name: string;
-  team: string;
   role: Role;
   initials: string;
 }

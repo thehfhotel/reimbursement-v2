@@ -27,7 +27,6 @@ type ReceiptItem = readonly [label: string, value: string];
 interface UserSeed {
   readonly id: string;
   readonly name: string;
-  readonly team: string;
   readonly role: Role;
   readonly initials: string;
 }
@@ -62,11 +61,11 @@ interface BundleSeed {
 }
 
 const USERS: readonly UserSeed[] = [
-  { id: 'user_maya',  name: 'มายา จ.',     team: 'ดีไซน์',    role: Role.EMPLOYEE, initials: 'มย' },
-  { id: 'user_niran', name: 'นิรันดร์ ก.', team: 'วิศวกรรม',  role: Role.EMPLOYEE, initials: 'นร' },
-  { id: 'user_kpol',  name: 'ก. พล',       team: 'การเงิน',   role: Role.APPROVER, initials: 'กพ' },
-  { id: 'user_som',   name: 'สม พ.',       team: 'แม่บ้าน',   role: Role.EMPLOYEE, initials: 'สพ' },
-  { id: 'user_mai',   name: 'ใหม่ ท.',     team: 'ครัว',      role: Role.EMPLOYEE, initials: 'มท' },
+  { id: 'user_maya',  name: 'มายา จ.',   role: Role.EMPLOYEE, initials: 'มย' },
+  { id: 'user_niran', name: 'นิรันดร์ ก.', role: Role.EMPLOYEE, initials: 'นร' },
+  { id: 'user_kpol',  name: 'ก. พล',     role: Role.APPROVER, initials: 'กพ' },
+  { id: 'user_som',   name: 'สม พ.',     role: Role.EMPLOYEE, initials: 'สพ' },
+  { id: 'user_mai',   name: 'ใหม่ ท.',   role: Role.EMPLOYEE, initials: 'มท' },
 ];
 
 // Six receipts owned by user_niran, mirroring SAMPLE_RECEIPTS.
@@ -272,13 +271,11 @@ async function seed(): Promise<void> {
           create: {
             id: user.id,
             name: user.name,
-            team: user.team,
             role: user.role,
             initials: user.initials,
           },
           update: {
             name: user.name,
-            team: user.team,
             role: user.role,
             initials: user.initials,
           },

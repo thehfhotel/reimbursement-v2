@@ -75,7 +75,6 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
       const created = await prisma.user.create({
         data: {
           name: body.name,
-          team: body.team,
           initials: body.initials,
           role: body.role === 'approver' ? 'APPROVER' : 'EMPLOYEE',
           lineId: null,
@@ -90,7 +89,6 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     {
       body: t.Object({
         name: t.String({ minLength: 1 }),
-        team: t.String({ minLength: 1 }),
         initials: t.String({ minLength: 1, maxLength: 4 }),
         role: t.Union([t.Literal('employee'), t.Literal('approver')]),
       }),
@@ -107,12 +105,10 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
 
       const updates: {
         name?: string;
-        team?: string;
         initials?: string;
         role?: 'EMPLOYEE' | 'APPROVER';
       } = {};
       if (body.name !== undefined) updates.name = body.name;
-      if (body.team !== undefined) updates.team = body.team;
       if (body.initials !== undefined) updates.initials = body.initials;
       if (body.role !== undefined) {
         updates.role = body.role === 'approver' ? 'APPROVER' : 'EMPLOYEE';
@@ -127,7 +123,6 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
     {
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1 })),
-        team: t.Optional(t.String({ minLength: 1 })),
         initials: t.Optional(t.String({ minLength: 1, maxLength: 4 })),
         role: t.Optional(t.Union([t.Literal('employee'), t.Literal('approver')])),
       }),
