@@ -234,7 +234,7 @@ jobs:
           # LINE Login
           LINE_CHANNEL_ID=${LINE_CHANNEL_ID}
           LINE_CHANNEL_SECRET=${LINE_CHANNEL_SECRET}
-          LINE_REDIRECT_URI=https://reimbursement.thehfhotel.org/auth/line/callback
+          LINE_REDIRECT_URI=https://reimbursement.thehfhotel.org/api/auth/callback/line
           WEB_BASE_URL=https://reimbursement.thehfhotel.org
           EOF
 

@@ -9,9 +9,12 @@ import { serializeUser } from '../serializers';
  * LINE OAuth 2.0 routes.
  *
  * Mirrors the proven flow from `fingerprint-time-logger`:
- *   GET  /api/auth/line/login      → 302 to LINE authorize endpoint
- *   GET  /api/auth/line/callback   → exchanges code, issues JWT, redirects to web
- *   POST /api/auth/line/link-account → binds a pre-link JWT to a User via 6-digit code
+ *   GET  /api/auth/login/line      → 302 to LINE authorize endpoint
+ *   GET  /api/auth/callback/line   → exchanges code, issues JWT, redirects to web
+ *                                    (NextAuth-style path — matches the URL
+ *                                     already registered in the LINE Login
+ *                                     channel, so no console change needed)
+ *   POST /api/auth/link-account    → binds a pre-link JWT to a User via 6-digit code
  *   GET  /api/auth/me              → returns current auth state for the frontend
  */
 
@@ -173,10 +176,10 @@ function buildCallbackRedirect(
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
 export const authLineRoutes = new Elysia()
-  .group('/auth/line', (group) =>
+  .group('/auth', (group) =>
     group
       .get(
-        '/login',
+        '/login/line',
         ({ query, redirect, status }) => {
           const config = getLineConfig();
           if ('missing' in config) {
@@ -204,7 +207,7 @@ export const authLineRoutes = new Elysia()
       )
 
       .get(
-        '/callback',
+        '/callback/line',
         async ({ query, redirect }) => {
           const config = getLineConfig();
           if ('missing' in config) {
@@ -302,6 +305,27 @@ export const authLineRoutes = new Elysia()
       )
 
       .use(prelinkAuth)
+      .get('/me', async ({ claims }) => {
+        if (claims.userId) {
+          const user = await prisma.user.findUnique({ where: { id: claims.userId } });
+          if (user) {
+            return {
+              linked: true as const,
+              user: serializeUser(user),
+              lineUserId: claims.lineUserId,
+              displayName: claims.displayName,
+              pictureUrl: claims.pictureUrl,
+            };
+          }
+        }
+        return {
+          linked: false as const,
+          user: null,
+          lineUserId: claims.lineUserId,
+          displayName: claims.displayName,
+          pictureUrl: claims.pictureUrl,
+        };
+      })
       .post(
         '/link-account',
         async ({ claims, body, status }) => {
@@ -362,30 +386,4 @@ export const authLineRoutes = new Elysia()
           }),
         },
       ),
-  )
-
-  .group('/auth', (group) =>
-    group
-      .use(prelinkAuth)
-      .get('/me', async ({ claims }) => {
-        if (claims.userId) {
-          const user = await prisma.user.findUnique({ where: { id: claims.userId } });
-          if (user) {
-            return {
-              linked: true as const,
-              user: serializeUser(user),
-              lineUserId: claims.lineUserId,
-              displayName: claims.displayName,
-              pictureUrl: claims.pictureUrl,
-            };
-          }
-        }
-        return {
-          linked: false as const,
-          user: null,
-          lineUserId: claims.lineUserId,
-          displayName: claims.displayName,
-          pictureUrl: claims.pictureUrl,
-        };
-      }),
   );

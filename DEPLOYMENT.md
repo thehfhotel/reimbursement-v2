@@ -41,8 +41,8 @@ The port is bound to the loopback so it's reachable only via the tunnel.
 | `CF_ACCESS_CLIENT_ID` | Cloudflare Access service token id |
 | `CF_ACCESS_CLIENT_SECRET` | Cloudflare Access service token secret |
 | `JWT_SECRET` | App JWT signing key — `openssl rand -base64 48` |
-| `LINE_CHANNEL_ID` | LINE Login channel id (shared with fingerprint-time-logger: `2007782520`) |
-| `LINE_CHANNEL_SECRET` | LINE Login channel secret |
+| `LINE_CHANNEL_ID` | LINE Login channel id — **reuse the legacy reimbursement app's** (`2008209394`); the callback URL `/api/auth/callback/line` is already registered |
+| `LINE_CHANNEL_SECRET` | LINE Login channel secret for the same channel |
 | `POSTGRES_PASSWORD` | Strong DB password — `openssl rand -base64 32` |
 
 ## First-time setup
@@ -93,13 +93,20 @@ In the Cloudflare Zero Trust dashboard:
 3. Drop both values into GitHub secrets as `CF_ACCESS_CLIENT_ID` and
    `CF_ACCESS_CLIENT_SECRET`.
 
-### 5. LINE Developers console — register the new redirect URIs
+### 5. LINE Developers console
 
-The channel is shared with `fingerprint-time-logger` (channel id
-`2007782520`). Add these callback URLs:
+We reuse the **legacy reimbursement app's LINE Login channel** (`2008209394`).
+Its production callback URL `https://reimbursement.thehfhotel.org/api/auth/callback/line`
+is already registered, so **no console changes are needed for prod**.
 
-- `http://localhost:5173/auth/line/callback` (local dev)
-- `https://reimbursement.thehfhotel.org/auth/line/callback` (prod)
+The route in our backend (`apps/api/src/routes/auth_line.ts`) is mounted at
+the NextAuth-style path `/api/auth/callback/line` deliberately so this URL
+keeps working — see CLAUDE.md.
+
+Local-dev LINE testing requires a localhost callback URL registered in the
+console; if you want it, add `http://localhost:5173/api/auth/callback/line`.
+For day-to-day local dev the tweaks panel's user-swap (`X-Dev-User-Id`)
+covers most flows without going through real LINE.
 
 ### 6. Cloudflare tunnel cutover
 

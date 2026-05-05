@@ -2,7 +2,7 @@ import type { Theme } from '../../lib/types';
 import { FONT_DISPLAY, FONT_UI, getTheme } from '../../lib/theme';
 
 const LINE_BRAND_GREEN = '#06C755';
-const LINE_LOGIN_REDIRECT = '/api/auth/line/login?redirect=' + encodeURIComponent('/');
+const LINE_LOGIN_REDIRECT = '/api/auth/login/line?redirect=' + encodeURIComponent('/');
 
 interface LoginProps {
   /** Optional theme — Login is shown pre-auth, so a default is provided. */

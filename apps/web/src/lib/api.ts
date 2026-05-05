@@ -232,7 +232,7 @@ export const api = {
   auth: {
     me: (): Promise<AuthMeResponse> => request<AuthMeResponse>('/api/auth/me'),
     linkAccount: (payload: { code: string }): Promise<AuthResponse> =>
-      request<AuthResponse>('/api/auth/line/link-account', jsonBody(payload)),
+      request<AuthResponse>('/api/auth/link-account', jsonBody(payload)),
   },
 
   receipts: {
