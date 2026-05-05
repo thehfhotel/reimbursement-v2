@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 #
-# evergreen-setup.sh — idempotent first-time setup for the `deploy` user
-# that GitHub Actions uses to ship reimbursement-v2 to the evergreen host.
+# evergreen-setup.sh — idempotent first-time setup for the dedicated
+# `reimbursement-v2` deploy user on evergreen.
 #
-# Run on evergreen, as root or with sudo. Re-running is safe — every step
-# checks for existing state before mutating.
+# Each project on this host gets ITS OWN system user (not a shared
+# `deploy` account), so two projects' CIs can't clobber each other's
+# authorized_keys when GitHub Actions provisions them.
+#
+# Run on evergreen, as root or with sudo. Re-runnable.
 #
 # Usage:
 #   sudo DEPLOY_SSH_PUBKEY='ssh-ed25519 AAAA…' bash evergreen-setup.sh
@@ -12,9 +15,9 @@
 
 set -euo pipefail
 
-DEPLOY_USER=deploy
+DEPLOY_USER=reimbursement-v2
 DEPLOY_HOME=/home/$DEPLOY_USER
-APP_DIR=$DEPLOY_HOME/reimbursement-v2-production
+APP_DIR=$DEPLOY_HOME/production
 
 # ── Preflight ────────────────────────────────────────────────────────
 if [ "$(id -u)" != "0" ]; then
@@ -83,9 +86,9 @@ cat <<EOF
 ──────────────────────────────────────────────────────────────────
 ✓ deploy user is ready.
 
-  user:  $DEPLOY_USER
-  home:  $DEPLOY_HOME
-  dir:   $APP_DIR
+  user:   $DEPLOY_USER
+  home:   $DEPLOY_HOME
+  dir:    $APP_DIR
   groups: $(id -Gn "$DEPLOY_USER")
 
 Next steps (off this host):
@@ -93,7 +96,7 @@ Next steps (off this host):
   1. From your laptop, prove the key works (replace <key> with the
      GH Actions ed25519 PRIVATE key file):
 
-       ssh -i <key> -o IdentitiesOnly=yes deploy@evergreen.thehfhotel.org id
+       ssh -i <key> -o IdentitiesOnly=yes ${DEPLOY_USER}@evergreen.thehfhotel.org id
 
   2. Pin the host's SSH host key for the GH Actions known_hosts secret:
 
@@ -103,10 +106,6 @@ Next steps (off this host):
 
   3. Set the rest of the GitHub repo secrets — see DEPLOYMENT.md.
 
-  4. Update the asgard tunnel ingress so reimbursement.thehfhotel.org
-     points at http://192.168.100.228:5800 instead of the old :3000.
-     See DEPLOYMENT.md "Cloudflare tunnel cutover".
-
-  5. Push to main — the deploy workflow takes it from here.
+  4. Push to main — the deploy workflow takes it from here.
 ──────────────────────────────────────────────────────────────────
 EOF

@@ -126,8 +126,8 @@ jobs:
 
     env:
       SSH_HOST: evergreen.thehfhotel.org
-      SSH_USER: deploy
-      DEPLOY_DIR: /home/deploy/reimbursement-v2-production
+      SSH_USER: reimbursement-v2
+      DEPLOY_DIR: /home/reimbursement-v2/production
 
     steps:
       - name: Checkout (compose file only)
@@ -262,7 +262,7 @@ jobs:
           set -euo pipefail
           ssh evergreen <<'REMOTE'
           set -euo pipefail
-          cd /home/deploy/reimbursement-v2-production
+          cd /home/reimbursement-v2/production
           docker compose pull
           docker compose up -d --remove-orphans
           docker image prune -f

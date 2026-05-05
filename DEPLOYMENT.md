@@ -13,8 +13,8 @@ GitHub Actions (ubuntu-latest)
     │
     ▼
 evergreen (Ubuntu)
-  ├── deploy user (locked password, ssh-key only, in `docker` group)
-  │     └── ~/reimbursement-v2-production/{docker-compose.yml, .env}
+  ├── reimbursement-v2 user (locked password, ssh-key only, in `docker` group)
+  │     └── ~/production/{docker-compose.yml, .env}
   │
   └── docker daemon
         ├── reimbursement-v2-postgres   (private network only)
@@ -36,7 +36,7 @@ The port is bound to the loopback so it's reachable only via the tunnel.
 
 | Secret | Purpose |
 |---|---|
-| `SSH_PRIVATE_KEY` | ed25519 private key for `deploy@evergreen` |
+| `SSH_PRIVATE_KEY` | ed25519 private key for `reimbursement-v2@evergreen` |
 | `SSH_KNOWN_HOSTS` | host key — `evergreen.thehfhotel.org ssh-ed25519 …` |
 | `CF_ACCESS_CLIENT_ID` | *(optional)* Cloudflare Access service token id, only if the evergreen SSH tunnel has an Access app |
 | `CF_ACCESS_CLIENT_SECRET` | *(optional)* Cloudflare Access service token secret |
@@ -176,13 +176,13 @@ ssh evergreen 'docker exec -it reimbursement-v2-postgres psql -U postgres -d rei
 
 ### Rollback
 
-Each deploy pins `IMAGE_TAG=sha-<commit>` in `~/reimbursement-v2-production/.env`
+Each deploy pins `IMAGE_TAG=sha-<commit>` in `~/production/.env`
 on evergreen. To roll back, edit that file, change `IMAGE_TAG=` to the
 previous sha, then:
 
 ```bash
 ssh evergreen <<'SH'
-cd ~/reimbursement-v2-production
+cd ~/production
 docker compose pull
 docker compose up -d --remove-orphans
 SH
@@ -219,7 +219,7 @@ Wire into cron / systemd-timer on evergreen for automatic snapshots.
 
 - **GH-hosted runner + SSH** instead of a self-hosted runner: no long-lived
   agent on evergreen, no daemon to keep updated, blast radius of a
-  compromised workflow run is "what `deploy@evergreen` can do inside the
+  compromised workflow run is "what `reimbursement-v2@evergreen` can do inside the
   docker socket" — not host-level.
 - **Cloudflare Access service token** instead of opening SSH to the
   internet: zero net-new attack surface. Same Access policy that lets your
