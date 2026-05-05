@@ -26,6 +26,13 @@
 # All secrets come from `.env` (materialized by the GitHub Actions deploy job
 # from repo Secrets). Do NOT bake any secret defaults into this file.
 
+# Pin the project name so the running containers + named volumes are
+# recognized regardless of the deploy directory's path. Without this,
+# compose derives the project from the cwd basename — so renaming the
+# deploy dir would orphan the existing reimbursement-v2-* containers and
+# data volumes.
+name: reimbursement-v2
+
 services:
   postgres:
     image: postgres:16-alpine
