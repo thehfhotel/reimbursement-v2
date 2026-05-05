@@ -1,12 +1,23 @@
-import { config as loadEnv } from 'dotenv';
 import { defineConfig } from 'prisma/config';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 
-// .env lives at the repo root. Best-effort load; on CI it doesn't exist and
-// commands that don't need a live DB (e.g. `prisma generate`, `prisma format`)
-// shouldn't fail just because there's no .env in sight.
-loadEnv({ path: resolve(import.meta.dirname, '../../.env') });
+// In dev (and in `bun run db:*` from the repo root), DATABASE_URL lives in
+// the repo-root `.env`. In production the container injects it directly via
+// docker-compose's `environment` block, no .env file in sight — and dotenv
+// is a dev-only dep, stripped from the runtime image. So: only try to load
+// dotenv when DATABASE_URL is missing, and tolerate dotenv not being
+// installed.
+if (!process.env.DATABASE_URL) {
+  try {
+    const req = createRequire(import.meta.url);
+    const dotenv = req('dotenv') as { config: (opts: { path: string }) => void };
+    dotenv.config({ path: resolve(import.meta.dirname, '../../.env') });
+  } catch {
+    // dotenv not available — rely on the ambient environment.
+  }
+}
 
 function requireDatabaseUrl(): string {
   const url = process.env.DATABASE_URL;
