@@ -269,37 +269,53 @@ jobs:
           REMOTE
 
       - name: Health check
+        # NB: avoid `exit 0` mid-heredoc — that closes ssh's stdin while the
+        # local end is still writing the rest of the script, which yields
+        # SIGPIPE and a non-zero ssh exit. Track outcomes in flags and let
+        # the script reach its natural end.
         run: |
           set -euo pipefail
-          # api /health via docker exec (the container isn't host-bound)
           ssh evergreen <<'REMOTE'
-          set -euo pipefail
+          set -uo pipefail
+
+          api_ok=0
           for i in $(seq 1 30); do
             if docker exec reimbursement-v2-api curl -fsS --max-time 3 http://localhost:3001/health >/dev/null 2>&1; then
               echo "api healthy after ${i}s"
+              api_ok=1
               break
             fi
-            if [ "$i" = 30 ]; then
-              echo "::error::api /health never came up"
-              docker logs --tail=80 reimbursement-v2-api || true
-              exit 1
-            fi
             sleep 2
           done
 
-          # End-to-end through shared-nginx → web → api on the public URL
+          if [ "$api_ok" != 1 ]; then
+            echo "::error::api /health never came up"
+            docker logs --tail=80 reimbursement-v2-api || true
+            exit 1
+          fi
+
+          # End-to-end via the host port the cloudflared tunnel routes to.
+          # Hitting reimbursement.thehfhotel.org would still resolve to the
+          # OLD app until the cutover ingress flip — checking 127.0.0.1:5800
+          # directly is unambiguous: that's exactly the new web container.
+          edge_ok=0
           for i in $(seq 1 30); do
-            if curl -fsS --max-time 5 https://reimbursement.thehfhotel.org/api/health >/dev/null 2>&1; then
-              echo "edge-to-api healthy after ${i}s"
-              exit 0
+            if curl -fsS --max-time 3 http://127.0.0.1:5800/healthz >/dev/null 2>&1; then
+              echo "web → api healthy on :5800 after ${i}s"
+              edge_ok=1
+              break
             fi
             sleep 2
           done
 
-          echo "::error::edge-to-api health check failed"
-          docker logs --tail=80 reimbursement-v2-web || true
-          docker logs --tail=80 reimbursement-v2-api || true
-          exit 1
+          if [ "$edge_ok" != 1 ]; then
+            echo "::error::web :5800 health check failed"
+            docker logs --tail=80 reimbursement-v2-web || true
+            docker logs --tail=80 reimbursement-v2-api || true
+            exit 1
+          fi
+
+          echo "deploy looks healthy."
           REMOTE
 
       - name: Summary
