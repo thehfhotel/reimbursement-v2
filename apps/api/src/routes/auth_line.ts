@@ -159,6 +159,18 @@ function buildErrorRedirect(webBaseUrl: string, reason: string): string {
   return `${webBaseUrl}/auth/error?reason=${encodeURIComponent(reason)}`;
 }
 
+/**
+ * Take a display name (any script — Thai, English, mixed) and return a
+ * compact 1-2 character avatar label. Strips whitespace/punctuation, then
+ * keeps the first two graphemes. Falls back to "?" if the input is empty.
+ */
+function deriveInitials(displayName: string): string {
+  const stripped = displayName.replace(/[\s.·,()\[\]{}<>"'`@#$%^&*+=|/\\?!~]/g, '');
+  if (stripped.length === 0) return '?';
+  const chars = Array.from(stripped); // grapheme-safe-ish for BMP; good enough
+  return chars.slice(0, 2).join('');
+}
+
 function buildCallbackRedirect(
   webBaseUrl: string,
   token: string,
@@ -267,10 +279,14 @@ export const authLineRoutes = new Elysia()
           let linked: boolean;
 
           if (existingUser) {
-            // Refresh stored display name + picture so they stay current.
+            // Sync the app-displayed name + initials with what LINE reports
+            // on every login. Single source of truth: the user's LINE
+            // profile. Avoids stale placeholder rows after first login.
             await prisma.user.update({
               where: { id: existingUser.id },
               data: {
+                name: profile.displayName,
+                initials: deriveInitials(profile.displayName),
                 lineDisplayName: profile.displayName,
                 linePictureUrl: profile.pictureUrl ?? null,
               },
