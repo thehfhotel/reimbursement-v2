@@ -2,7 +2,7 @@
 #
 # Topology:
 #
-#   Cloudflare Tunnel (asgard) ──▶ host:5800 (loopback) ──▶ reimbursement-v2-web
+#   Cloudflare Tunnel (asgard) ──▶ host:5800 (LAN-bound) ──▶ reimbursement-v2-web
 #                                                                    │
 #                                                                    ▼
 #                                                          reimbursement-v2-api
@@ -14,9 +14,10 @@
 # The web container's own nginx (apps/web/nginx.conf) handles SPA fallback
 # and proxies /api + /uploads to the api container over the
 # reimbursement_v2_internal Docker network. There is NO host-level nginx in
-# front — cloudflared routes the public hostname directly to host port 5800
-# (bound to 127.0.0.1 only, so the port isn't reachable except via the
-# tunnel).
+# front — cloudflared routes the public hostname directly to host port 5800.
+# The port binds on all interfaces (cloudflared talks to apps via the host's
+# LAN IP, not loopback), but evergreen sits behind a firewall + Cloudflare
+# Tunnel so the only path from public to this port is via the tunnel.
 #
 # Postgres has no host port mapping in production. To inspect prod data, exec
 # into the postgres container directly:
@@ -89,7 +90,11 @@ services:
     # in front. Pick a host port that doesn't collide with the asgard
     # tunnel's existing routes.
     ports:
-      - "127.0.0.1:5800:80"
+      # Bound on all interfaces so cloudflared (which reaches the app via
+      # the host's LAN IP, like every other app on this fleet) can connect.
+      # The port isn't reachable from the public internet — only the LAN
+      # and the cloudflared tunnel.
+      - "5800:80"
     depends_on:
       api:
         condition: service_healthy
