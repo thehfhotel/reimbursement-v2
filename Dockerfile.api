@@ -112,4 +112,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD curl -fsS --max-time 3 http://localhost:3001/health > /dev/null || exit 1
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["bun", "run", "apps/api/src/index.ts"]
+# Path is relative to the entrypoint's cwd (apps/api), where prisma's
+# migrate command also runs.
+CMD ["bun", "run", "src/index.ts"]
