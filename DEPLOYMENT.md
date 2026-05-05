@@ -13,21 +13,24 @@ GitHub Actions (ubuntu-latest)
     │
     ▼
 evergreen (Ubuntu)
-  ├── deploy user        — owns ~/reimbursement-v2-production/, in docker group
+  ├── deploy user (locked password, ssh-key only, in `docker` group)
   │     └── ~/reimbursement-v2-production/{docker-compose.yml, .env}
   │
-  ├── docker daemon
-  │     ├── reimbursement-v2-postgres   (private network only)
-  │     ├── reimbursement-v2-api        (private network only)
-  │     └── reimbursement-v2-web        (private + shared-nginx network)
-  │
-  └── shared-nginx                       (host operator's existing container)
-        └── proxy_pass http://reimbursement-v2-web;
-              ▲
-              │ reimbursement.thehfhotel.org
-              │
-        Cloudflare Tunnel → public internet
+  └── docker daemon
+        ├── reimbursement-v2-postgres   (private network only)
+        ├── reimbursement-v2-api        (private network only)
+        └── reimbursement-v2-web        bound to 127.0.0.1:5800
+                              ▲
+                              │
+        Cloudflare Tunnel (asgard) ──▶ reimbursement.thehfhotel.org
+                              │
+                       public internet
 ```
+
+The web container has its own internal nginx — handles SPA fallback and
+proxies `/api` + `/uploads` to the api container. There is no host-level
+nginx; cloudflared routes the public hostname directly to host port 5800.
+The port is bound to the loopback so it's reachable only via the tunnel.
 
 ## Repo secrets (Settings → Secrets and variables → Actions)
 
@@ -56,8 +59,6 @@ cat ~/.ssh/reimbursement-v2-deploy       # → goes into SSH_PRIVATE_KEY secret
 
 ### 2. Provision the deploy user on evergreen
 
-Copy `deploy/evergreen-setup.sh` to evergreen, then run as root:
-
 ```bash
 scp deploy/evergreen-setup.sh evergreen:/tmp/
 ssh evergreen
@@ -65,7 +66,9 @@ sudo DEPLOY_SSH_PUBKEY='ssh-ed25519 AAAA… gh-actions deploy@reimbursement-v2' 
   bash /tmp/evergreen-setup.sh
 ```
 
-The script is idempotent — re-run it any time you need to add a second
+The script is idempotent. It creates a `deploy` system user with **password
+authentication locked** (`passwd -l`), authorizes the public key, and adds
+the user to the `docker` group. Re-run any time you need to add a second
 authorized key or recreate the app directory.
 
 ### 3. Pin the host key
@@ -98,30 +101,39 @@ The channel is shared with `fingerprint-time-logger` (channel id
 - `http://localhost:5173/auth/line/callback` (local dev)
 - `https://reimbursement.thehfhotel.org/auth/line/callback` (prod)
 
-### 6. DNS
+### 6. Cloudflare tunnel cutover
 
-Point `reimbursement.thehfhotel.org` at the existing Cloudflare Tunnel that
-fronts evergreen — same way the rest of the fleet is exposed.
-
-### 7. First-deploy nginx vhost
-
-The deploy user can't write to the host operator's `~/nginx`. As the
-operator, **once**:
+The hostname `reimbursement.thehfhotel.org` already proxies through the
+asgard tunnel (CNAME exists), but the ingress rule still points at the OLD
+app on host port 3000. After the new app is deployed and healthy on host
+port 5800, flip the rule. As the user that owns `~/.config/cloudflare/`:
 
 ```bash
-# On evergreen, as the user that owns the shared-nginx config (e.g. nut)
-curl -fsSL https://raw.githubusercontent.com/thehfhotel/reimbursement-v2/main/deploy/nginx/reimbursement.conf \
-  -o ~/nginx/sites-available/reimbursement.conf
-ln -sf ~/nginx/sites-available/reimbursement.conf ~/nginx/sites-enabled/reimbursement.conf
+TOKEN=$(tr -d '[:space:]' < ~/.config/cloudflare/token)
+ACCT=$(tr -d '[:space:]'  < ~/.config/cloudflare/account)
+TUN=$(awk '$1 == "asgard" {print $2}' ~/.config/cloudflare/tunnels)
+API="https://api.cloudflare.com/client/v4"
 
-docker exec shared-nginx nginx -t   # validate
-docker exec shared-nginx nginx -s reload
+cur=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
+  "$API/accounts/$ACCT/cfd_tunnel/$TUN/configurations" | jq '.result.config')
+
+new=$(echo "$cur" | jq '
+  .ingress |= (
+    map(if .hostname == "reimbursement.thehfhotel.org"
+        then .service = "http://192.168.100.228:5800"
+        else . end))')
+
+curl -fsS -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "$(jq -nc --argjson c "$new" '{config: $c}')" \
+  "$API/accounts/$ACCT/cfd_tunnel/$TUN/configurations" | jq '{success, errors}'
 ```
 
-Subsequent deploys don't change the vhost (the `proxy_pass` target is the
-stable container name `reimbursement-v2-web`).
+Rollback is the same call with `:3000` (or whatever the previous port was)
+in place of `:5800`. Cloudflare propagates the change in under 60 seconds.
 
-### 8. Trigger the first deploy
+### 7. Trigger the first deploy
 
 ```bash
 git push origin main
@@ -196,13 +208,23 @@ Wire into cron / systemd-timer on evergreen for automatic snapshots.
 - **Cloudflare Access service token** instead of opening SSH to the
   internet: zero net-new attack surface. Same Access policy that lets your
   laptop in lets the workflow in.
+- **Public-key SSH only, no password fallback**: the deploy user's password
+  is locked (`passwd -l`) on evergreen. Client-side, the workflow's SSH
+  config sets `PreferredAuthentications publickey`, `PasswordAuthentication
+  no`, `KbdInteractiveAuthentication no`, `BatchMode yes` — so even a
+  compromised server config can't downgrade the auth method.
 - **Pinned host key**: protects against an evil cloudflared / man-in-tunnel
-  swapping the host.
+  swapping the host out from under us.
+- **No nginx in front**: the web container's own nginx is enough — SPA
+  fallback + `/api` proxy. Removing the host-level shared-nginx layer cuts
+  one moving piece, one config file the deploy user couldn't write to, and
+  one place for vhost drift.
+- **Loopback-only host port (`127.0.0.1:5800`)**: the public can only reach
+  the web container through the Cloudflare Tunnel, never directly via the
+  host's IP.
 - **`umask 077` + `chmod 600` on `.env`**: secrets never have a
   world-readable window on either the runner or evergreen.
 - **Image tags pinned by sha** on the deploy host: rollback is "edit one
   line, `docker compose up -d`" — no need to re-run a workflow.
-- **No host port for the api**: api is reachable only via the web
-  container's nginx, which is reachable only via shared-nginx, which is
-  fronted by Cloudflare. Three layers between the public internet and the
-  api process.
+- **No host port for the api**: the api is reachable only via the web
+  container's nginx over a private Docker network. Postgres is the same.

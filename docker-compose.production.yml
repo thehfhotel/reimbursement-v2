@@ -2,18 +2,21 @@
 #
 # Topology:
 #
-#   shared-nginx (host 80/443) ──▶ reimbursement-v2-web ──▶ reimbursement-v2-api
-#                                              │              │
-#                                              └─ both on ───┘
-#                                              reimbursement_v2_internal
-#                                                                │
-#                                                          reimbursement-v2-postgres
-#                                                          (internal-only)
+#   Cloudflare Tunnel (asgard) ──▶ host:5800 (loopback) ──▶ reimbursement-v2-web
+#                                                                    │
+#                                                                    ▼
+#                                                          reimbursement-v2-api
+#                                                                    │
+#                                                                    ▼
+#                                                       reimbursement-v2-postgres
+#                                                       (internal-only)
 #
-# The host-level shared-nginx vhost (`deploy/nginx/reimbursement.conf`) does
-# `proxy_pass http://reimbursement-v2-web;` over the external `shared-nginx`
-# network. The api container is NOT attached to shared-nginx — only the web
-# container is — so the api is reachable only via the web nginx proxy.
+# The web container's own nginx (apps/web/nginx.conf) handles SPA fallback
+# and proxies /api + /uploads to the api container over the
+# reimbursement_v2_internal Docker network. There is NO host-level nginx in
+# front — cloudflared routes the public hostname directly to host port 5800
+# (bound to 127.0.0.1 only, so the port isn't reachable except via the
+# tunnel).
 #
 # Postgres has no host port mapping in production. To inspect prod data, exec
 # into the postgres container directly:
@@ -80,14 +83,18 @@ services:
     image: ghcr.io/thehfhotel/reimbursement-v2-web:${IMAGE_TAG:-latest}
     container_name: reimbursement-v2-web
     restart: unless-stopped
-    # No host port — shared-nginx fronts this container by name on the
-    # `shared-nginx` external network.
+    # Cloudflare Tunnel routes reimbursement.thehfhotel.org directly to this
+    # host port. The web container's own nginx handles SPA fallback and
+    # /api + /uploads proxying to the api container — no host-level nginx
+    # in front. Pick a host port that doesn't collide with the asgard
+    # tunnel's existing routes.
+    ports:
+      - "127.0.0.1:5800:80"
     depends_on:
       api:
         condition: service_healthy
     networks:
       - reimbursement_v2_internal
-      - shared-nginx
     healthcheck:
       test:
         - CMD-SHELL
@@ -108,9 +115,3 @@ networks:
   reimbursement_v2_internal:
     name: reimbursement_v2_internal
     driver: bridge
-  # Pre-existing external bridge maintained on the host. Apps that want a
-  # public hostname attach to it; the shared-nginx container resolves
-  # service names over this bridge.
-  shared-nginx:
-    external: true
-    name: shared-nginx

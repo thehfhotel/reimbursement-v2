@@ -175,6 +175,16 @@ jobs:
             StrictHostKeyChecking yes
             ServerAliveInterval 15
             ServerAliveCountMax 3
+            # Force public-key only. The server's sshd should also have
+            # PasswordAuthentication=no, but we lock it down on the client
+            # side too so a compromised server config can't downgrade us.
+            PreferredAuthentications publickey
+            PubkeyAuthentication yes
+            PasswordAuthentication no
+            KbdInteractiveAuthentication no
+            HostbasedAuthentication no
+            GSSAPIAuthentication no
+            BatchMode yes
             ProxyCommand cloudflared access ssh --hostname %h --service-token-id ${CF_ACCESS_CLIENT_ID} --service-token-secret ${CF_ACCESS_CLIENT_SECRET}
           EOF
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts ~/.ssh/config

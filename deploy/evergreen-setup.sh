@@ -37,6 +37,12 @@ else
   useradd --system --create-home --shell /bin/bash "$DEPLOY_USER"
 fi
 
+# Lock the password so this account can ONLY log in via the SSH keys we
+# explicitly authorize below — no password fallback ever, even if sshd is
+# misconfigured later. Idempotent (passwd -l is a no-op if already locked).
+passwd -l "$DEPLOY_USER" >/dev/null
+echo "✓ password authentication disabled for $DEPLOY_USER"
+
 # ── 2. docker group ──────────────────────────────────────────────────
 if id -nG "$DEPLOY_USER" | tr ' ' '\n' | grep -qx docker; then
   echo "✓ $DEPLOY_USER already in docker group"
@@ -97,10 +103,9 @@ Next steps (off this host):
 
   3. Set the rest of the GitHub repo secrets — see DEPLOYMENT.md.
 
-  4. ONE-TIME, as the original operator (the user that owns
-     /home/nut/nginx), drop the vhost in and reload shared-nginx.
-     The vhost file lives at deploy/nginx/reimbursement.conf in the
-     repo. See DEPLOYMENT.md "First-deploy nginx vhost".
+  4. Update the asgard tunnel ingress so reimbursement.thehfhotel.org
+     points at http://192.168.100.228:5800 instead of the old :3000.
+     See DEPLOYMENT.md "Cloudflare tunnel cutover".
 
   5. Push to main — the deploy workflow takes it from here.
 ──────────────────────────────────────────────────────────────────
