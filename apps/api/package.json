@@ -23,7 +23,7 @@
     "@reimbursement/shared": "workspace:*",
     "elysia": "^1.1.27",
     "jose": "^6.2.3",
-    "pg": "^8.13.1",
+    "pg": "^8.21.0",
     "prisma": "^7.2.0"
   },
   "devDependencies": {
