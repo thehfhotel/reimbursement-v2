@@ -1,0 +1,47 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.2.0] - 2026-06-16
+
+Production-correctness pass. The app was already a near-complete build with a working
+deploy pipeline, but it rendered inside a dev-only phone-frame mockup and lacked a few
+money-handling guards. This release makes it correct on real devices and safe for live
+reimbursements.
+
+### Fixed
+- **Responsive layout.** Production picked a hardcoded "mobile" platform and wrapped the
+  whole UI in a dev-only iPhone frame, so desktop browsers showed a tiny phone in a black
+  void and the existing desktop layouts were unreachable. The layout is now chosen from the
+  viewport width — desktops get the desktop layout, phones render full-bleed; the phone
+  frame is dev-preview only.
+- **Bundle list missing receipts.** `GET /bundles` omitted receipts (and the approver),
+  which would crash the inbox/home once any real bundle existed. List responses are now full
+  bundle details.
+- **Hardcoded identity.** Mobile headers showed placeholder initials/greeting and the desktop
+  screens resolved approver/submitter names from a hardcoded seed map. Names and initials now
+  come from the live API / logged-in user.
+
+### Added
+- Viewport-based platform detection (`useViewportPlatform`).
+- Bundle state-machine guards: approve/reject require a pending bundle, pay requires an
+  approved bundle (HTTP 409 otherwise).
+- Submitter/approver display names + initials in the bundle API contract.
+
+### Changed
+- CORS is restricted to the configured web origin (`WEB_BASE_URL`) in production.
+
+### Security
+- The dev `X-Dev-User-Id` impersonation header is honored only when `NODE_ENV=development`;
+  it fails closed when `NODE_ENV` is unset or set to anything else.
+
+### Removed
+- Non-functional placeholder controls (filter, notification bell, "more" menus, and the
+  static "view all" link).
+
+## [0.1.0] - 2026-05-05
+
+- Initial reimbursement-v2 build (Bun + Elysia + Prisma + React): receipts, bundles,
+  approvals, payments, admin employee management, and LINE OAuth account linking.
