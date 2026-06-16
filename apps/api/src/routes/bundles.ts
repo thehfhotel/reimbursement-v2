@@ -29,9 +29,10 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
     '/',
     async ({ user, query, status }) => {
       const isApprover = user.role === 'APPROVER';
+      const mine = query.mine === '1' || query.mine === 'true';
       const filters: Record<string, unknown> = {};
 
-      if (!isApprover) {
+      if (!isApprover || mine) {
         filters.userId = user.id;
       }
 
@@ -40,7 +41,7 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
           return status(400, { message: `Unknown status: ${query.status}` });
         }
         filters.status = bundleStatusFromShared(query.status);
-      } else if (isApprover) {
+      } else if (isApprover && !mine) {            // guard: don't force PENDING for the mine view
         filters.status = bundleStatusFromShared('pending');
       }
 
@@ -58,6 +59,7 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
     {
       query: t.Object({
         status: t.Optional(t.String()),
+        mine: t.Optional(t.String()),
       }),
     },
   )

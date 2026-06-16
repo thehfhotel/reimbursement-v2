@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-16
+
+### Added
+- **Approvers can create their own reimbursement requests** ("คำขอของฉัน" / My requests). An approver keeps
+  their approval inbox and gains an opt-in entry — a desktop sidebar item and a mobile Inbox AppBar action —
+  into the full requestor flow, with a back-to-inbox affordance. Their requestor view is scoped to their own
+  data via a new server-side `?mine=1` param on `GET /receipts` and `GET /bundles`, loaded into a separate client
+  state slice (no other users' rows are sent to the browser). Self-approval is allowed, so a single-approver org
+  is never a dead-end.
+
+### Fixed
+- Newly created receipts now use today's date instead of the hardcoded `2026-04-30`.
+
 ## [0.2.2] - 2026-06-16
 
 ### Changed

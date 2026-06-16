@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { AppState, BundleWithDetails, Receipt, Theme } from '../../lib/types';
+import type { AppState, BundleWithDetails, Receipt, Theme, User } from '../../lib/types';
 import { fmt, fmt0, fmtN, formatThaiDate } from '../../lib/format';
 import { FONT_DISPLAY, FONT_MONO, FONT_UI } from '../../lib/theme';
 import { api, receiptFormFromFields } from '../../lib/api';
@@ -13,7 +13,7 @@ import { ReceiptPhoto, ReceiptThumb } from '../../components/Receipts';
 // ── Constants for new (uploaded) receipts ────────────────────────────
 const NEW_RECEIPT_COLOR = '#F5EBD9';
 const NEW_RECEIPT_ACCENT = '#7E5E3A';
-const NEW_RECEIPT_DATE = '2026-04-30';
+const NEW_RECEIPT_DATE = new Date().toISOString().slice(0, 10);
 const NEW_RECEIPT_MERCHANT_FALLBACK = 'ใบเสร็จใหม่';
 const DEFAULT_BUNDLE_NAME = 'ค่าใช้จ่ายสัปดาห์นี้';
 const DETAIL_MAX_WIDTH = 840;
@@ -27,9 +27,11 @@ interface DesktopEmployeeProps {
   theme: Theme;
   state: AppState;
   setState: (updater: (s: AppState) => AppState) => void;
+  currentUser?: User | null;
+  onBackToInbox?: () => void;
 }
 
-export function DesktopEmployee({ theme, state, setState }: DesktopEmployeeProps): JSX.Element {
+export function DesktopEmployee({ theme, state, setState, currentUser, onBackToInbox }: DesktopEmployeeProps): JSX.Element {
   const [view, setView] = useState<View>('drafts');
   const [selectedBundleId, setSelectedBundleId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -134,9 +136,17 @@ export function DesktopEmployee({ theme, state, setState }: DesktopEmployeeProps
           เบิกค่าใช้จ่าย
         </div>
         <div style={{ fontFamily: FONT_UI, fontSize: 11, color: theme.inkSoft, marginTop: 2 }}>
-          นิรันดร์ ก. · วิศวกรรม
+          {currentUser?.name ?? currentUser?.initials ?? ''}
         </div>
       </div>
+
+      {onBackToInbox && (
+        <DeskNavItem
+          theme={theme}
+          label="กล่องอนุมัติ"
+          onClick={onBackToInbox}
+        />
+      )}
 
       <DeskNavItem
         theme={theme}

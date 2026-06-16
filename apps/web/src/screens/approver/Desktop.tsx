@@ -19,7 +19,7 @@ interface DesktopApproverProps {
   theme: Theme;
   state: AppState;
   setState: (updater: (s: AppState) => AppState) => void;
-  onNavigate?: (target: 'admin-employees') => void;
+  onNavigate?: (target: 'admin-employees' | 'my-requests') => void;
   currentUser: User | null;
 }
 
@@ -187,7 +187,7 @@ interface SidebarContentProps {
   paidCount: number;
   rejectedCount: number;
   onSelectFilter: (next: FilterKey) => void;
-  onNavigate?: (target: 'admin-employees') => void;
+  onNavigate?: (target: 'admin-employees' | 'my-requests') => void;
   currentUser: User | null;
 }
 
@@ -261,6 +261,11 @@ function SidebarContent({
         theme={theme}
         label="พนักงาน"
         onClick={onNavigate ? () => onNavigate('admin-employees') : undefined}
+      />
+      <SidebarItem
+        theme={theme}
+        label="คำขอของฉัน"
+        onClick={onNavigate ? () => onNavigate('my-requests') : undefined}
       />
 
       <div style={{ flex: 1 }} />

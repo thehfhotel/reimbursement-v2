@@ -14,9 +14,10 @@ interface HomeProps {
   state: AppState;
   nav: Nav;
   currentUser: User | null;
+  isApprover?: boolean;
 }
 
-export function Home({ theme, state, nav, currentUser }: HomeProps) {
+export function Home({ theme, state, nav, currentUser, isApprover }: HomeProps) {
   const { receipts, bundles } = state;
 
   const loose = receipts.filter((r) => r.bundleId === null);
@@ -42,6 +43,26 @@ export function Home({ theme, state, nav, currentUser }: HomeProps) {
         leading={<Avatar theme={theme} initials={currentUser?.initials ?? ''} />}
         trailing={
           <>
+            {isApprover && (
+              <button
+                onClick={() => nav({ name: 'approver-home' })}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '8px 14px',
+                  borderRadius: 100,
+                  background: 'transparent',
+                  color: theme.inkSoft,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: FONT,
+                  fontSize: 13,
+                  fontWeight: 500,
+                }}
+              >
+                กล่องอนุมัติ
+              </button>
+            )}
             <button
               onClick={() => nav({ name: 'upload' })}
               style={{

@@ -11,7 +11,8 @@ export type Route =
   | { name: 'login' }
   | { name: 'auth-callback' }
   | { name: 'link-account' }
-  | { name: 'admin-employees' };
+  | { name: 'admin-employees' }
+  | { name: 'my-requests' };
 
 export type RouteName = Route['name'];
 

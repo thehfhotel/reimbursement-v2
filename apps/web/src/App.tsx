@@ -48,6 +48,7 @@ function initialRouteFromUrl(): Route {
   if (path === '/auth/callback') return { name: 'auth-callback' };
   if (path === '/link-account') return { name: 'link-account' };
   if (path === '/admin/employees') return { name: 'admin-employees' };
+  if (path === '/my-requests') return { name: 'my-requests' };
   return { name: 'home' };
 }
 
@@ -68,7 +69,9 @@ export function App() {
   const nav = (r: Route) => setRoute(r);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const currentUserRef = useRef<User | null>(null);
   const [state, setState] = useState<AppState>(EMPTY_STATE);
+  const [myState, setMyState] = useState<AppState>(EMPTY_STATE); // approver's own requests
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -81,6 +84,13 @@ export function App() {
         api.bundles.list(),
       ]);
       setState({ receipts, bundles });
+      if (currentUserRef.current?.role === 'approver') {
+        const [myReceipts, myBundles] = await Promise.all([
+          api.receipts.list({ mine: true }),
+          api.bundles.list(undefined, { mine: true }),
+        ]);
+        setMyState({ receipts: myReceipts, bundles: myBundles });
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unknown error');
     }
@@ -105,6 +115,7 @@ export function App() {
             setRoute({ name: 'link-account' });
             return;
           }
+          currentUserRef.current = meResponse.user;
           setCurrentUser(meResponse.user);
           await refetch();
           return;
@@ -117,6 +128,7 @@ export function App() {
           }
           const me = await api.me();
           if (cancelled) return;
+          currentUserRef.current = me;
           setCurrentUser(me);
           await refetch();
           return;
@@ -179,14 +191,17 @@ export function App() {
     else if (name === 'approver-review' && id) setRoute({ name: 'approver-review', id });
     else if (name === 'approver-pay' && id) setRoute({ name: 'approver-pay', id });
     else if (name === 'admin-employees') setRoute({ name: 'admin-employees' });
+    else if (name === 'my-requests') setRoute({ name: 'my-requests' });
     else if (name === 'logout') handleLogout();
   };
 
   const handleLogout = () => {
     setAuthToken(null);
     setDevUserId(null);
+    currentUserRef.current = null;
     setCurrentUser(null);
     setState(EMPTY_STATE);
+    setMyState(EMPTY_STATE);
     setRoute({ name: 'login' });
   };
 
@@ -234,23 +249,39 @@ export function App() {
   }
 
   const role = currentUser?.role ?? tweaks.role;
-  const screen = renderScreen({ route, theme, state, setState, nav, role, currentUser });
+  const REQUESTOR_ROUTES = new Set(['upload', 'record', 'bundle-new', 'bundle-submitted', 'bundle']);
+  const inRequestorMode = role === 'employee' || route.name === 'my-requests' || REQUESTOR_ROUTES.has(route.name);
+  const reqState = role === 'approver' ? myState : state;
+  const reqSetState = role === 'approver' ? setMyState : setState;
+
+  const screen = renderScreen({ route, theme, state, setState, reqState, reqSetState, nav, role, currentUser });
   // FAB is mobile-only; desktop home has the explicit + button in the AppBar.
   const showFab =
     platform === 'mobile' &&
-    role === 'employee' &&
-    (route.name === 'home' || route.name === 'record');
+    inRequestorMode &&
+    (route.name === 'home' || route.name === 'my-requests' || route.name === 'record');
 
   if (platform === 'desktop') {
     return (
       <>
-        {role === 'approver' ? (
+        {role === 'approver' && route.name !== 'my-requests' ? (
           <DesktopApprover
             theme={theme}
             state={state}
             setState={setState}
-            onNavigate={(target) => setRoute({ name: target })}
+            onNavigate={(target) => {
+              if (target === 'my-requests') setRoute({ name: 'my-requests' });
+              else setRoute({ name: 'admin-employees' });
+            }}
             currentUser={currentUser}
+          />
+        ) : role === 'approver' ? (
+          <DesktopEmployee
+            theme={theme}
+            state={myState}
+            setState={setMyState}
+            currentUser={currentUser}
+            onBackToInbox={() => setRoute({ name: 'approver-home' })}
           />
         ) : (
           <DesktopEmployee theme={theme} state={state} setState={setState} />
@@ -329,29 +360,34 @@ interface RenderArgs {
   theme: ReturnType<typeof getTheme>;
   state: AppState;
   setState: (updater: (s: AppState) => AppState) => void;
+  reqState: AppState;
+  reqSetState: (updater: (s: AppState) => AppState) => void;
   nav: (r: Route) => void;
   role: Tweaks['role'];
   currentUser: User | null;
 }
 
-function renderScreen({ route, theme, state, setState, nav, role, currentUser }: RenderArgs) {
-  if (role === 'employee') {
-    if (route.name === 'home') return <Home theme={theme} state={state} nav={nav} currentUser={currentUser} />;
-    if (route.name === 'upload') return <Upload theme={theme} state={state} nav={nav} setState={setState} />;
-    if (route.name === 'record') return <RecordDetail theme={theme} state={state} nav={nav} recordId={route.id} />;
-    if (route.name === 'bundle-new') return <BundleBuilder theme={theme} state={state} nav={nav} setState={setState} />;
-    if (route.name === 'bundle-submitted')
-      return <BundleSubmitted theme={theme} state={state} nav={nav} bundleId={route.id} />;
-    if (route.name === 'bundle') return <BundleDetail theme={theme} state={state} nav={nav} bundleId={route.id} />;
-    return <Home theme={theme} state={state} nav={nav} currentUser={currentUser} />;
-  }
+function renderScreen({ route, theme, state, setState, reqState, reqSetState, nav, role, currentUser }: RenderArgs) {
+  // Requestor flow — available to any signed-in user (owner-scoped data)
+  if (route.name === 'upload') return <Upload theme={theme} state={reqState} nav={nav} setState={reqSetState} />;
+  if (route.name === 'record') return <RecordDetail theme={theme} state={reqState} nav={nav} recordId={route.id} />;
+  if (route.name === 'bundle-new') return <BundleBuilder theme={theme} state={reqState} nav={nav} setState={reqSetState} />;
+  if (route.name === 'bundle-submitted')
+    return <BundleSubmitted theme={theme} state={reqState} nav={nav} bundleId={route.id} />;
+  if (route.name === 'bundle') return <BundleDetail theme={theme} state={reqState} nav={nav} bundleId={route.id} />;
+  if (route.name === 'my-requests')
+    return <Home theme={theme} state={reqState} nav={nav} currentUser={currentUser} isApprover={role === 'approver'} />;
 
-  if (route.name === 'approver-home' || route.name === 'home')
-    return <Inbox theme={theme} state={state} nav={nav} currentUser={currentUser} />;
+  // Approver inbox flow
   if (route.name === 'approver-review')
     return <Review theme={theme} state={state} nav={nav} bundleId={route.id} setState={setState} />;
   if (route.name === 'approver-pay')
     return <Pay theme={theme} state={state} nav={nav} bundleId={route.id} setState={setState} />;
+  if (route.name === 'approver-home')
+    return <Inbox theme={theme} state={state} nav={nav} currentUser={currentUser} />;
+
+  // 'home': employee → requestor Home; approver → inbox
+  if (role === 'employee') return <Home theme={theme} state={reqState} nav={nav} currentUser={currentUser} />;
   return <Inbox theme={theme} state={state} nav={nav} currentUser={currentUser} />;
 }
 
@@ -365,6 +401,8 @@ function pathForRoute(route: Route): string {
       return '/link-account';
     case 'admin-employees':
       return '/admin/employees';
+    case 'my-requests':
+      return '/my-requests';
     default:
       return '/';
   }

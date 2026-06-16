@@ -236,15 +236,19 @@ export const api = {
   },
 
   receipts: {
-    list: (): Promise<Receipt[]> => request<Receipt[]>('/api/receipts'),
+    list: (opts?: { mine?: boolean }): Promise<Receipt[]> =>
+      request<Receipt[]>(opts?.mine ? '/api/receipts?mine=1' : '/api/receipts'),
     create: (form: FormData): Promise<Receipt> =>
       request<Receipt>('/api/receipts', { method: 'POST', body: form }),
   },
 
   bundles: {
-    list: (status?: BundleStatus): Promise<BundleWithDetails[]> => {
-      const path = status ? `/api/bundles?status=${encodeURIComponent(status)}` : '/api/bundles';
-      return request<BundleWithDetails[]>(path);
+    list: (status?: BundleStatus, opts?: { mine?: boolean }): Promise<BundleWithDetails[]> => {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (opts?.mine) params.set('mine', '1');
+      const qs = params.toString();
+      return request<BundleWithDetails[]>(qs ? `/api/bundles?${qs}` : '/api/bundles');
     },
     get: (id: string): Promise<BundleWithDetails> =>
       request<BundleWithDetails>(`/api/bundles/${encodeURIComponent(id)}`),

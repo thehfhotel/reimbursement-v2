@@ -43,6 +43,22 @@ export function Inbox({ theme, state, nav, currentUser }: InboxProps) {
         subtitle="การเงิน · ผู้อนุมัติ"
         title="กล่องอนุมัติ"
         leading={<Avatar theme={theme} initials={currentUser?.initials ?? ''} />}
+        trailing={
+          <button
+            onClick={() => nav({ name: 'my-requests' })}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontFamily: FONT_UI,
+              fontSize: 14,
+              color: theme.inkSoft,
+              cursor: 'pointer',
+              padding: '4px 8px',
+            }}
+          >
+            คำขอของฉัน
+          </button>
+        }
       />
 
       {/* Stats */}

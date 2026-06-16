@@ -120,9 +120,10 @@ export const receiptRoutes = new Elysia({ prefix: '/receipts' })
     '/',
     async ({ user, query }) => {
       const isApprover = user.role === 'APPROVER';
+      const mine = query.mine === '1' || query.mine === 'true';
       const filters: Record<string, unknown> = {};
 
-      if (!isApprover) {
+      if (!isApprover || mine) {
         filters.userId = user.id;
       }
 
@@ -143,6 +144,7 @@ export const receiptRoutes = new Elysia({ prefix: '/receipts' })
       query: t.Object({
         bundleId: t.Optional(t.String()),
         loose: t.Optional(t.String()),
+        mine: t.Optional(t.String()),
       }),
     },
   )
