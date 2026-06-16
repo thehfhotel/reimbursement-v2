@@ -55,7 +55,7 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
   };
 
   return (
-    <div style={{ paddingBottom: 130, position: 'relative' }}>
+    <div style={{ position: 'relative' }}>
       <AppBar
         theme={theme}
         leading={
@@ -216,10 +216,8 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
       {b.status === 'pending' && (
         <div
           style={{
-            position: 'absolute',
+            position: 'sticky',
             bottom: 0,
-            left: 0,
-            right: 0,
             padding: '24px 20px 28px',
             background: `linear-gradient(180deg, transparent, ${theme.paper} 25%)`,
             display: 'flex',
@@ -240,10 +238,8 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
       {b.status === 'approved' && (
         <div
           style={{
-            position: 'absolute',
+            position: 'sticky',
             bottom: 0,
-            left: 0,
-            right: 0,
             padding: '24px 20px 28px',
             background: `linear-gradient(180deg, transparent, ${theme.paper} 25%)`,
           }}

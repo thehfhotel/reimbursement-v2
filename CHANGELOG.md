@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-06-17
+
+### Fixed
+- Mobile action bars (save / submit / approve / pay) used `position: absolute` inside the scrolling
+  container, so they drifted up while scrolling and overlapped form fields (e.g. the save button covering
+  the ที่พัก property selector). Changed to `position: sticky` so they stay pinned to the bottom — across
+  Upload, BundleBuilder, Review, and Pay.
+
 ## [0.3.0] - 2026-06-16
 
 ### Added

@@ -82,7 +82,7 @@ export function Upload({ theme, nav, setState }: UploadProps) {
   };
 
   return (
-    <div style={{ paddingBottom: 120 }}>
+    <div>
       <AppBar
         theme={theme}
         leading={
@@ -244,10 +244,8 @@ export function Upload({ theme, nav, setState }: UploadProps) {
       {/* Save bar */}
       <div
         style={{
-          position: 'absolute',
+          position: 'sticky',
           bottom: 0,
-          left: 0,
-          right: 0,
           padding: '12px 20px 30px',
           background: `linear-gradient(180deg, transparent, ${theme.paper} 30%)`,
         }}

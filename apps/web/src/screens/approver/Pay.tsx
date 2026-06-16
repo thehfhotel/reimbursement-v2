@@ -139,7 +139,7 @@ export function Pay({ theme, state, nav, bundleId, setState }: PayProps) {
   }
 
   return (
-    <div style={{ paddingBottom: 130 }}>
+    <div>
       <AppBar
         theme={theme}
         large
@@ -277,10 +277,8 @@ export function Pay({ theme, state, nav, bundleId, setState }: PayProps) {
 
       <div
         style={{
-          position: 'absolute',
+          position: 'sticky',
           bottom: 0,
-          left: 0,
-          right: 0,
           padding: '24px 20px 28px',
           background: `linear-gradient(180deg, transparent, ${theme.paper} 25%)`,
         }}

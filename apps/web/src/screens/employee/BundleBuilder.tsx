@@ -56,7 +56,7 @@ export function BundleBuilder({ theme, state, nav, setState }: BundleBuilderProp
   };
 
   return (
-    <div style={{ paddingBottom: 130 }}>
+    <div>
       <AppBar
         theme={theme}
         large
@@ -98,10 +98,8 @@ export function BundleBuilder({ theme, state, nav, setState }: BundleBuilderProp
 
       <div
         style={{
-          position: 'absolute',
+          position: 'sticky',
           bottom: 0,
-          left: 0,
-          right: 0,
           background: `linear-gradient(180deg, transparent, ${theme.paper} 25%)`,
           padding: '24px 20px 28px',
         }}
