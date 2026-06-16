@@ -110,20 +110,38 @@ export function IconBtn({ children, onClick, theme }: IconBtnProps) {
     <button
       onClick={onClick}
       style={{
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        background: theme.surface,
-        border: `0.5px solid ${theme.hairline}`,
+        // 44×44 touch target; negative margin keeps layout footprint at 36px
+        width: 44,
+        height: 44,
+        margin: -4,
+        borderRadius: 22,
+        background: 'transparent',
+        border: 'none',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
         color: theme.ink,
         padding: 0,
+        flexShrink: 0,
       }}
     >
-      {children}
+      {/* Visual 36px circle */}
+      <span
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          background: theme.surface,
+          border: `0.5px solid ${theme.hairline}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        {children}
+      </span>
     </button>
   );
 }

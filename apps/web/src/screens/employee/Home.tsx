@@ -177,7 +177,7 @@ export function Home({ theme, state, nav, currentUser, isApprover }: HomeProps) 
         <SectionHeader
           theme={theme}
           title={`ฉบับร่าง · ${loose.length}`}
-          action={loose.length >= 2 ? <span onClick={() => nav({ name: 'bundle-new' })}>รวมชุด →</span> : null}
+          action={loose.length >= 1 ? <span onClick={() => nav({ name: 'bundle-new' })}>รวมชุด →</span> : null}
         />
 
         {loose.length === 0 && (

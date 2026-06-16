@@ -4,6 +4,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-17
+
+### Added
+- **Photo upload now offers the photo library + files, not just the camera** — removed the forced
+  `capture="environment"`, so the OS picker shows Take Photo / Photo Library / Choose File.
+
+### Changed (UX pass — P0 quick wins)
+- Error + busy/disabled states on every money action (approve / reject / pay / create-receipt / submit-bundle):
+  failures now surface inline and double-submits are prevented.
+- Removed misleading/dead controls: the fake payee bank account on the pay screen and the no-op "ขอข้อมูลเพิ่ม" button.
+- Accessibility: WCAG-AA contrast for soft text, a global focus-visible ring, 44px tap targets for icon buttons.
+- Linking-code expiry shows relative time ("หมดอายุในอีก N ชม.") instead of only a date.
+- Single-receipt → bundle path is reachable; "add to bundle" preselects only that receipt.
+- Amount inputs accept at most one decimal point + 2 fraction digits; payment reference is trimmed.
+- Employee initials auto-derive from name; inbox stat cards switch tabs; approver list rows show a chevron.
+- Dropped the synthetic "รายการที่ถ่าย" line item from new receipts.
+
 ## [0.3.1] - 2026-06-17
 
 ### Fixed

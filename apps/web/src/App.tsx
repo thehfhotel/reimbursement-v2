@@ -371,7 +371,7 @@ function renderScreen({ route, theme, state, setState, reqState, reqSetState, na
   // Requestor flow — available to any signed-in user (owner-scoped data)
   if (route.name === 'upload') return <Upload theme={theme} state={reqState} nav={nav} setState={reqSetState} />;
   if (route.name === 'record') return <RecordDetail theme={theme} state={reqState} nav={nav} recordId={route.id} />;
-  if (route.name === 'bundle-new') return <BundleBuilder theme={theme} state={reqState} nav={nav} setState={reqSetState} />;
+  if (route.name === 'bundle-new') return <BundleBuilder theme={theme} state={reqState} nav={nav} setState={reqSetState} preselectId={route.id} />;
   if (route.name === 'bundle-submitted')
     return <BundleSubmitted theme={theme} state={reqState} nav={nav} bundleId={route.id} />;
   if (route.name === 'bundle') return <BundleDetail theme={theme} state={reqState} nav={nav} bundleId={route.id} />;
@@ -430,7 +430,7 @@ function CenteredSpinner({ background, accent }: { background: string; accent: s
           animation: 'spin 0.8s linear infinite',
         }}
       />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } } *:focus-visible { outline: 2px solid #C8501A; outline-offset: 2px; border-radius: 2px; }`}</style>
     </div>
   );
 }

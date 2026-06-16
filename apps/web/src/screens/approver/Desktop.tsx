@@ -30,6 +30,8 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
   const [payOpen, setPayOpen] = useState(false);
   const [transferRefInput, setTransferRefInput] = useState('');
   const [proof, setProof] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const allBundles: BundleWithDetails[] = state.bundles;
 
@@ -66,15 +68,31 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
   };
 
   const handleApprove = async (): Promise<void> => {
-    if (!selectedBundle) return;
-    const updated = await api.bundles.approve(selectedBundle.id);
-    applyServerUpdate(updated);
+    if (!selectedBundle || submitting) return;
+    setActionError(null);
+    setSubmitting(true);
+    try {
+      const updated = await api.bundles.approve(selectedBundle.id);
+      applyServerUpdate(updated);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleReject = async (): Promise<void> => {
-    if (!selectedBundle) return;
-    const updated = await api.bundles.reject(selectedBundle.id);
-    applyServerUpdate(updated);
+    if (!selectedBundle || submitting) return;
+    setActionError(null);
+    setSubmitting(true);
+    try {
+      const updated = await api.bundles.reject(selectedBundle.id);
+      applyServerUpdate(updated);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const closePaySheet = (): void => {
@@ -84,14 +102,22 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
   };
 
   const confirmPay = async (): Promise<void> => {
-    if (!selectedBundle || !proof || !transferRefInput) return;
-    const proofFile = await dataUrlToFile(proof, 'proof.jpg');
-    const updated = await api.bundles.pay(
-      selectedBundle.id,
-      payFormFromFields(transferRefInput, proofFile),
-    );
-    applyServerUpdate(updated);
-    closePaySheet();
+    if (!selectedBundle || !proof || !transferRefInput.trim() || submitting) return;
+    setActionError(null);
+    setSubmitting(true);
+    try {
+      const proofFile = await dataUrlToFile(proof, 'proof.jpg');
+      const updated = await api.bundles.pay(
+        selectedBundle.id,
+        payFormFromFields(transferRefInput.trim(), proofFile),
+      );
+      applyServerUpdate(updated);
+      closePaySheet();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const selectFilter = (next: FilterKey): void => {
@@ -137,6 +163,8 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
               onReject={handleReject}
               onPay={() => setPayOpen(true)}
               onPhoto={(i) => setPhotoIdx(i)}
+              submitting={submitting}
+              actionError={actionError}
             />
           ) : (
             <DetailEmptyState
@@ -169,6 +197,8 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
               setProof={setProof}
               onClose={closePaySheet}
               onConfirm={confirmPay}
+              submitting={submitting}
+              actionError={actionError}
             />
           )}
         </div>
@@ -478,6 +508,8 @@ interface DesktopDetailProps {
   onReject: () => void;
   onPay: () => void;
   onPhoto: (i: number) => void;
+  submitting: boolean;
+  actionError: string | null;
 }
 
 function DesktopDetail({
@@ -489,6 +521,8 @@ function DesktopDetail({
   onReject,
   onPay,
   onPhoto,
+  submitting,
+  actionError,
 }: DesktopDetailProps): JSX.Element {
   const [whole, frac] = fmtN(total).split('.');
   const initials = bundle.submitter.name
@@ -800,10 +834,12 @@ function DesktopDetail({
             ปฏิเสธ
           </GhostButton>
           <div style={{ flex: 1 }} />
-          <GhostButton theme={theme}>ขอข้อมูลเพิ่ม</GhostButton>
+          {actionError && (
+            <span style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.danger }}>{actionError}</span>
+          )}
           <div style={{ minWidth: 220 }}>
-            <PrimaryButton theme={theme} onClick={onApprove}>
-              อนุมัติ · {fmt(total)}
+            <PrimaryButton theme={theme} onClick={onApprove} disabled={submitting}>
+              {submitting ? 'กำลังดำเนินการ...' : `อนุมัติ · ${fmt(total)}`}
             </PrimaryButton>
           </div>
         </ActionBar>
@@ -1009,6 +1045,8 @@ interface PaySheetProps {
   setProof: (next: string | null) => void;
   onClose: () => void;
   onConfirm: () => void;
+  submitting: boolean;
+  actionError: string | null;
 }
 
 function PaySheet({
@@ -1021,6 +1059,8 @@ function PaySheet({
   setProof,
   onClose,
   onConfirm,
+  submitting,
+  actionError,
 }: PaySheetProps): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1125,9 +1165,6 @@ function PaySheet({
                 ฿{fmtN(total)}
               </div>
             </div>
-            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: theme.inkSoft }}>
-              •••• 4471 · ไทยพาณิชย์
-            </div>
           </div>
         </Card>
 
@@ -1204,13 +1241,18 @@ function PaySheet({
           />
         </div>
 
+        {actionError && (
+          <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.danger, marginBottom: 10 }}>
+            {actionError}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 10 }}>
           <GhostButton theme={theme} onClick={onClose}>
             ยกเลิก
           </GhostButton>
           <div style={{ flex: 1 }}>
-            <PrimaryButton theme={theme} disabled={!proof || !transferRefInput} onClick={onConfirm}>
-              ยืนยันการจ่าย · ฿{fmtN(total)}
+            <PrimaryButton theme={theme} disabled={!proof || !transferRefInput.trim() || submitting} onClick={onConfirm}>
+              {submitting ? 'กำลังบันทึก...' : `ยืนยันการจ่าย · ฿${fmtN(total)}`}
             </PrimaryButton>
           </div>
         </div>

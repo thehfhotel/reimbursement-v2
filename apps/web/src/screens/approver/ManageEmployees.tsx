@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { ApiError, api } from '../../lib/api';
-import { formatThaiDate } from '../../lib/format';
+import { formatExpiry, formatThaiDate } from '../../lib/format';
 import { FONT_DISPLAY, FONT_MONO, FONT_UI } from '../../lib/theme';
 import type { AdminUser, CreateUserRequest, Role, Theme, UpdateUserRequest } from '../../lib/types';
 import { DesktopShell, SidebarItem } from '../../components/DesktopShell';
@@ -676,7 +676,7 @@ function LineStatusCell({ theme, user, onGenerate, onShowCode }: LineStatusCellP
           รหัส: {user.lineLinkingCode}
         </button>
         <span style={{ fontSize: 11, color: theme.inkSoft }}>
-          {expired ? 'หมดอายุแล้ว' : `หมดอายุ ${formatThaiDate(expiresAt)}`}
+          {formatExpiry(expiresAt)}
         </span>
       </div>
     );
@@ -906,13 +906,22 @@ function UserFormModal({
   const [initials, setInitials] = useState(initial?.initials ?? '');
   const [role, setRole] = useState<Role>(initial?.role ?? 'employee');
 
-  const canSubmit = name.trim().length > 0 && initials.trim().length > 0;
+  const canSubmit = name.trim().length > 0;
+
+  /** Derive 1–2 character initials from the first letters of up to two words. */
+  const deriveInitials = (n: string): string => {
+    const words = n.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return '';
+    if (words.length === 1) return (words[0]?.[0] ?? '').slice(0, 2);
+    return ((words[0]?.[0] ?? '') + (words[1]?.[0] ?? '')).slice(0, 2);
+  };
 
   const handleSubmit = (): void => {
     if (!canSubmit) return;
+    const resolvedInitials = initials.trim() || deriveInitials(name);
     onSubmit({
       name: name.trim(),
-      initials: initials.trim(),
+      initials: resolvedInitials,
       role,
     });
   };
@@ -935,12 +944,12 @@ function UserFormModal({
         <ModalInput theme={theme} value={name} onChange={setName} placeholder="นที รัตนพงศ์" />
       </ModalField>
 
-      <ModalField theme={theme} label="อักษรย่อ">
+      <ModalField theme={theme} label="อักษรย่อ (ไม่บังคับ — ระบบจะสร้างให้อัตโนมัติ)">
         <ModalInput
           theme={theme}
           value={initials}
           onChange={(v) => setInitials(v.slice(0, 4))}
-          placeholder="นร"
+          placeholder={name.trim() ? deriveInitials(name) : 'นร'}
         />
       </ModalField>
 
@@ -1144,7 +1153,7 @@ function CodeDisplayModal({ theme, display, onClose }: CodeDisplayModalProps): J
             color: expired ? theme.danger : theme.inkSoft,
           }}
         >
-          {expired ? 'หมดอายุแล้ว' : `หมดอายุ ${formatThaiDate(display.expiresAt)}`}
+          {formatExpiry(display.expiresAt)}
         </div>
       </div>
 

@@ -72,36 +72,40 @@ export function RecordDetail({ theme, state, nav, recordId }: RecordDetailProps)
           <DetailRow theme={theme} label="สถานะ" value="ฉบับร่าง · ยังไม่ได้รวม" last />
         </Card>
 
-        <SectionHeader theme={theme} title="รายการ" />
-        <Card theme={theme} padding={0}>
-          {r.items.map(([label, val], i) => (
-            <div
-              key={i}
-              style={{
-                padding: '14px 18px',
-                borderBottom: i < r.items.length - 1 ? `0.5px solid ${theme.hairline}` : 'none',
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontFamily: FONT_UI,
-              }}
-            >
-              <span style={{ color: theme.ink, fontSize: 14 }}>{label}</span>
-              <span
-                style={{
-                  color: theme.ink,
-                  fontSize: 14,
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                ฿{val}
-              </span>
-            </div>
-          ))}
-        </Card>
+        {r.items.length > 0 && (
+          <>
+            <SectionHeader theme={theme} title="รายการ" />
+            <Card theme={theme} padding={0}>
+              {r.items.map(([label, val], i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '14px 18px',
+                    borderBottom: i < r.items.length - 1 ? `0.5px solid ${theme.hairline}` : 'none',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontFamily: FONT_UI,
+                  }}
+                >
+                  <span style={{ color: theme.ink, fontSize: 14 }}>{label}</span>
+                  <span
+                    style={{
+                      color: theme.ink,
+                      fontSize: 14,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    ฿{val}
+                  </span>
+                </div>
+              ))}
+            </Card>
+          </>
+        )}
       </div>
 
       <div style={{ padding: '24px 20px' }}>
-        <PrimaryButton theme={theme} onClick={() => nav({ name: 'bundle-new' })}>
+        <PrimaryButton theme={theme} onClick={() => nav({ name: 'bundle-new', id: r.id })}>
           เพิ่มในชุดเบิก
         </PrimaryButton>
       </div>

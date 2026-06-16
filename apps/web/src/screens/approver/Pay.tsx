@@ -24,6 +24,7 @@ export function Pay({ theme, state, nav, bundleId, setState }: PayProps) {
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!b) return null;
@@ -38,15 +39,18 @@ export function Pay({ theme, state, nav, bundleId, setState }: PayProps) {
   };
 
   const handleConfirmPay = async () => {
-    if (!proofFile || !ref || submitting) return;
+    if (!proofFile || !ref.trim() || submitting) return;
+    setError(null);
     setSubmitting(true);
     try {
-      const updated = await api.bundles.pay(b.id, payFormFromFields(ref, proofFile));
+      const updated = await api.bundles.pay(b.id, payFormFromFields(ref.trim(), proofFile));
       setState((s) => ({
         ...s,
         bundles: s.bundles.map((x) => (x.id === updated.id ? updated : x)),
       }));
       setStep('done');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setSubmitting(false);
     }
@@ -170,9 +174,6 @@ export function Pay({ theme, state, nav, bundleId, setState }: PayProps) {
               <div style={{ fontFamily: FONT_UI, fontSize: 15, fontWeight: 500, color: theme.ink, marginTop: 4 }}>
                 {b.submitter.name}
               </div>
-              <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: theme.inkSoft, marginTop: 2 }}>
-                •••• 4471 · ไทยพาณิชย์
-              </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div
@@ -281,11 +282,19 @@ export function Pay({ theme, state, nav, bundleId, setState }: PayProps) {
           bottom: 0,
           padding: '24px 20px 28px',
           background: `linear-gradient(180deg, transparent, ${theme.paper} 25%)`,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
         }}
       >
+        {error && (
+          <div style={{ fontFamily: FONT_UI, fontSize: 12, color: theme.danger, textAlign: 'center' }}>
+            {error}
+          </div>
+        )}
         <PrimaryButton
           theme={theme}
-          disabled={!proofFile || !ref || submitting}
+          disabled={!proofFile || !ref.trim() || submitting}
           onClick={handleConfirmPay}
         >
           {submitting ? 'กำลังบันทึก...' : `ยืนยันการจ่าย · ${fmt(total)}`}

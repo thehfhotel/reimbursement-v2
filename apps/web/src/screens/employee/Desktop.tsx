@@ -18,6 +18,15 @@ const NEW_RECEIPT_MERCHANT_FALLBACK = 'ใบเสร็จใหม่';
 const DEFAULT_BUNDLE_NAME = 'ค่าใช้จ่ายสัปดาห์นี้';
 const DETAIL_MAX_WIDTH = 840;
 
+function sanitizeAmountInput(raw: string): string {
+  let v = raw.replace(/[^0-9.]/g, '');
+  const dot = v.indexOf('.');
+  if (dot !== -1) {
+    v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, '').slice(0, 2);
+  }
+  return v;
+}
+
 // Pulled from `@reimbursement/shared` to stay in sync with the rest of the app.
 import { RECEIPT_CATEGORIES } from '../../lib/types';
 
@@ -38,6 +47,8 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
   const [bundleName, setBundleName] = useState<string>(DEFAULT_BUNDLE_NAME);
   const [photoIdx, setPhotoIdx] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [justSubmitted, setJustSubmitted] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState<boolean>(false);
 
@@ -79,6 +90,7 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
 
   const submitBundle = async (): Promise<void> => {
     setSubmitting(true);
+    setSubmitError(null);
     try {
       const created = await api.bundles.create({
         name: bundleName,
@@ -95,32 +107,39 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
       setBundleName(DEFAULT_BUNDLE_NAME);
       setJustSubmitted(created.id);
       window.setTimeout(() => setJustSubmitted(null), 4000);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleCreateReceipt = async (input: NewReceiptInput): Promise<void> => {
-    const photoFile = await dataUrlToFile(input.photo, 'receipt.jpg');
-    const form = receiptFormFromFields(
-      {
-        merchant: input.merchant.trim() || NEW_RECEIPT_MERCHANT_FALLBACK,
-        category: input.category,
-        property: input.property,
-        quantity: input.quantity,
-        amount: input.amount,
-        date: NEW_RECEIPT_DATE,
-        note: input.note.trim() ? input.note.trim() : '',
-        color: NEW_RECEIPT_COLOR,
-        accent: NEW_RECEIPT_ACCENT,
-        items: [['รายการที่ถ่าย', input.amount.toFixed(2)]],
-        tax: '0',
-      },
-      photoFile,
-    );
-    const created = await api.receipts.create(form);
-    setState((s) => ({ ...s, receipts: [created, ...s.receipts] }));
-    setCreateOpen(false);
+    setCreateError(null);
+    try {
+      const photoFile = await dataUrlToFile(input.photo, 'receipt.jpg');
+      const form = receiptFormFromFields(
+        {
+          merchant: input.merchant.trim() || NEW_RECEIPT_MERCHANT_FALLBACK,
+          category: input.category,
+          property: input.property,
+          quantity: input.quantity,
+          amount: input.amount,
+          date: NEW_RECEIPT_DATE,
+          note: input.note.trim() ? input.note.trim() : '',
+          color: NEW_RECEIPT_COLOR,
+          accent: NEW_RECEIPT_ACCENT,
+          items: [],
+          tax: '0',
+        },
+        photoFile,
+      );
+      const created = await api.receipts.create(form);
+      setState((s) => ({ ...s, receipts: [created, ...s.receipts] }));
+      setCreateOpen(false);
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+    }
   };
 
   const openCreateModal = (): void => setCreateOpen(true);
@@ -248,6 +267,31 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
   return (
     <DesktopShell theme={theme} sidebar={sidebar}>
       <div style={{ height: '100%' }}>{mainContent}</div>
+      {(submitError || createError) && (
+        <div
+          onClick={() => {
+            setSubmitError(null);
+            setCreateError(null);
+          }}
+          style={{
+            position: 'fixed',
+            top: 16,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 200,
+            background: theme.danger,
+            color: '#fff',
+            padding: '10px 16px',
+            borderRadius: 10,
+            fontFamily: FONT_UI,
+            fontSize: 13,
+            cursor: 'pointer',
+            boxShadow: '0 6px 20px rgba(0,0,0,0.2)',
+          }}
+        >
+          {submitError || createError}
+        </div>
+      )}
       {createOpen && (
         <CreateReceiptModal
           theme={theme}
@@ -1564,7 +1608,7 @@ function CreateReceiptModal({ theme, onClose, onSave }: CreateReceiptModalProps)
                 <input
                   type="text"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+                  onChange={(e) => setAmount(sanitizeAmountInput(e.target.value))}
                   placeholder="0.00"
                   inputMode="decimal"
                   style={{

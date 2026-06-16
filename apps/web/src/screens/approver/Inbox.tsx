@@ -63,7 +63,7 @@ export function Inbox({ theme, state, nav, currentUser }: InboxProps) {
 
       {/* Stats */}
       <div style={{ padding: '8px 20px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <Card theme={theme} padding={16}>
+        <Card theme={theme} padding={16} onClick={() => setTab('pending')} style={{ cursor: 'pointer' }}>
           <div
             style={{
               fontFamily: FONT_UI,
@@ -91,7 +91,7 @@ export function Inbox({ theme, state, nav, currentUser }: InboxProps) {
             {fmt(totalPending)}
           </div>
         </Card>
-        <Card theme={theme} padding={16}>
+        <Card theme={theme} padding={16} onClick={() => setTab('approved')} style={{ cursor: 'pointer' }}>
           <div
             style={{
               fontFamily: FONT_UI,

@@ -14,15 +14,19 @@ interface BundleBuilderProps {
   state: AppState;
   nav: Nav;
   setState: (updater: (s: AppState) => AppState) => void;
+  preselectId?: string;
 }
 
-export function BundleBuilder({ theme, state, nav, setState }: BundleBuilderProps) {
+export function BundleBuilder({ theme, state, nav, setState, preselectId }: BundleBuilderProps) {
   const [name, setName] = useState('ค่าใช้จ่ายสัปดาห์นี้');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loose = state.receipts.filter((r) => r.bundleId === null);
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(loose.map((r) => r.id)));
+  const [selected, setSelected] = useState<Set<string>>(() =>
+    preselectId ? new Set([preselectId]) : new Set(),
+  );
 
   const total = loose.filter((r) => selected.has(r.id)).reduce((s, r) => s + r.amount, 0);
 
@@ -35,6 +39,7 @@ export function BundleBuilder({ theme, state, nav, setState }: BundleBuilderProp
 
   const submit = async () => {
     if (selected.size === 0 || submitting) return;
+    setError(null);
     setSubmitting(true);
     try {
       const created = await api.bundles.create({
@@ -50,6 +55,8 @@ export function BundleBuilder({ theme, state, nav, setState }: BundleBuilderProp
         ),
       }));
       nav({ name: 'bundle-submitted', id: created.id });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setSubmitting(false);
     }
@@ -138,6 +145,19 @@ export function BundleBuilder({ theme, state, nav, setState }: BundleBuilderProp
             <span style={{ color: theme.inkSofter }}>→ ฝ่ายการเงิน</span>
           </div>
         </div>
+        {error && (
+          <div
+            style={{
+              fontFamily: FONT_UI,
+              fontSize: 12,
+              color: theme.danger,
+              marginBottom: 8,
+              textAlign: 'center',
+            }}
+          >
+            {error}
+          </div>
+        )}
         <PrimaryButton theme={theme} disabled={selected.size === 0 || submitting} onClick={submit}>
           {submitting ? 'กำลังส่ง...' : 'ส่งเพื่อตรวจสอบ'}
         </PrimaryButton>

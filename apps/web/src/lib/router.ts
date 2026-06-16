@@ -2,7 +2,7 @@ export type Route =
   | { name: 'home' }
   | { name: 'upload' }
   | { name: 'record'; id: string }
-  | { name: 'bundle-new' }
+  | { name: 'bundle-new'; id?: string }
   | { name: 'bundle-submitted'; id: string }
   | { name: 'bundle'; id: string }
   | { name: 'approver-home' }

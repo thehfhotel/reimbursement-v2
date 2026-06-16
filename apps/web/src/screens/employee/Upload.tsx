@@ -38,6 +38,7 @@ export function Upload({ theme, nav, setState }: UploadProps) {
   const [quantity, setQuantity] = useState('');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const today = todayIso();
@@ -66,16 +67,19 @@ export function Upload({ theme, nav, setState }: UploadProps) {
         note,
         color: palette[0],
         accent: palette[1],
-        items: [['รายการที่ถ่าย', amount]],
+        items: [],
         tax: '0',
       },
       photoFile,
     );
     setSubmitting(true);
+    setSaveError(null);
     try {
       const created = await api.receipts.create(form);
       setState((s) => ({ ...s, receipts: [created, ...s.receipts] }));
       nav({ name: 'home' });
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setSubmitting(false);
     }
@@ -98,7 +102,6 @@ export function Upload({ theme, nav, setState }: UploadProps) {
         ref={fileRef}
         type="file"
         accept="image/*"
-        capture="environment"
         style={{ display: 'none' }}
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -189,7 +192,16 @@ export function Upload({ theme, nav, setState }: UploadProps) {
           <input
             type="text"
             value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/[^0-9.]/g, '');
+              // Allow at most one decimal point and at most 2 fraction digits
+              const parts = raw.split('.');
+              const cleaned =
+                parts.length <= 1
+                  ? raw
+                  : parts[0] + '.' + parts.slice(1).join('').slice(0, 2);
+              setAmount(cleaned);
+            }}
             placeholder="0.00"
             inputMode="decimal"
             style={{
@@ -250,6 +262,19 @@ export function Upload({ theme, nav, setState }: UploadProps) {
           background: `linear-gradient(180deg, transparent, ${theme.paper} 30%)`,
         }}
       >
+        {saveError && (
+          <div
+            style={{
+              fontFamily: FONT_UI,
+              fontSize: 12,
+              color: theme.danger,
+              marginBottom: 8,
+              textAlign: 'center',
+            }}
+          >
+            {saveError}
+          </div>
+        )}
         <PrimaryButton theme={theme} disabled={!canSave} onClick={handleSave}>
           {submitting ? 'กำลังบันทึก...' : `บันทึก · ${amount ? fmt(parseFloat(amount) || 0) : '฿0.00'}`}
         </PrimaryButton>

@@ -30,6 +30,8 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
   const found = state.bundles.find((x) => x.id === bundleId);
   const [b, setB] = useState<BundleWithDetails | undefined>(found);
   const [photoIdx, setPhotoIdx] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!b) return null;
   const items = b.receipts;
@@ -45,13 +47,31 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
   };
 
   const handleApprove = async () => {
-    const updated = await api.bundles.approve(b.id);
-    applyServerUpdate(updated);
+    if (submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const updated = await api.bundles.approve(b.id);
+      applyServerUpdate(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleReject = async () => {
-    const updated = await api.bundles.reject(b.id);
-    applyServerUpdate(updated);
+    if (submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const updated = await api.bundles.reject(b.id);
+      applyServerUpdate(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -221,16 +241,24 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
             padding: '24px 20px 28px',
             background: `linear-gradient(180deg, transparent, ${theme.paper} 25%)`,
             display: 'flex',
+            flexDirection: 'column',
             gap: 10,
           }}
         >
-          <GhostButton theme={theme} onClick={handleReject}>
-            ปฏิเสธ
-          </GhostButton>
-          <div style={{ flex: 1 }}>
-            <PrimaryButton theme={theme} onClick={handleApprove}>
-              อนุมัติ · {fmt(total)}
-            </PrimaryButton>
+          {error && (
+            <div style={{ fontFamily: FONT_UI, fontSize: 12, color: theme.danger, textAlign: 'center' }}>
+              {error}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <GhostButton theme={theme} onClick={handleReject}>
+              {submitting ? 'กำลัง...' : 'ปฏิเสธ'}
+            </GhostButton>
+            <div style={{ flex: 1 }}>
+              <PrimaryButton theme={theme} onClick={handleApprove} disabled={submitting}>
+                {submitting ? 'กำลัง...' : `อนุมัติ · ${fmt(total)}`}
+              </PrimaryButton>
+            </div>
           </div>
         </div>
       )}
