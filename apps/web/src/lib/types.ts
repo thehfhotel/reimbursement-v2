@@ -17,6 +17,10 @@ export interface Theme {
   success: string;
   warn: string;
   danger: string;
+  statusPending: string;
+  statusApproved: string;
+  statusPaid: string;
+  statusRejected: string;
 }
 
 // Bundles in app state include their joined receipts and submitter, since the

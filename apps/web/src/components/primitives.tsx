@@ -218,10 +218,10 @@ interface StatusPillProps {
 export function StatusPill({ status, theme, size = 'md' }: StatusPillProps) {
   const map: Record<BundleStatus, { label: string; dot: string; fg: string }> = {
     draft: { label: 'ร่าง', dot: theme.inkSofter, fg: theme.inkSoft },
-    pending: { label: 'รออนุมัติ', dot: theme.warn, fg: theme.warn },
-    approved: { label: 'อนุมัติแล้ว', dot: theme.success, fg: theme.success },
-    paid: { label: 'จ่ายแล้ว', dot: theme.success, fg: theme.ink },
-    rejected: { label: 'ปฏิเสธ', dot: theme.danger, fg: theme.danger },
+    pending: { label: 'รออนุมัติ', dot: theme.statusPending, fg: theme.statusPending },
+    approved: { label: 'อนุมัติแล้ว', dot: theme.statusApproved, fg: theme.statusApproved },
+    paid: { label: 'จ่ายแล้ว', dot: theme.statusPaid, fg: theme.statusPaid },
+    rejected: { label: 'ปฏิเสธ', dot: theme.statusRejected, fg: theme.statusRejected },
   };
   const s = map[status] ?? map.draft;
   const small = size === 'sm';

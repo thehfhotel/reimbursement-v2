@@ -1,8 +1,11 @@
 import type { Theme } from './types';
 
-export const FONT_DISPLAY = 'Arial, sans-serif';
-export const FONT_UI = 'Arial, sans-serif';
-export const FONT_MONO = 'Arial, sans-serif';
+export const FONT_DISPLAY =
+  'system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif';
+export const FONT_UI =
+  'system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif';
+export const FONT_MONO =
+  'ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace';
 
 export function getTheme(dark: boolean, accent: string): Theme {
   return {
@@ -18,6 +21,11 @@ export function getTheme(dark: boolean, accent: string): Theme {
     success: '#3B7A4B',
     warn: '#C4761A',
     danger: '#B43A3A',
+    // Distinct, calm status hues — separate from the burnt-orange brand accent.
+    statusPending: dark ? '#D9A441' : '#B0791E',
+    statusApproved: dark ? '#6FA0D6' : '#3F6EA8',
+    statusPaid: dark ? '#5FA974' : '#3B7A4B',
+    statusRejected: dark ? '#D97070' : '#B43A3A',
   };
 }
 

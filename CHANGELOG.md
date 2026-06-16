@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-06-17
+
+### Changed
+- **Status colors.** pending / approved / paid / rejected now have distinct, calm hues (separate from the
+  burnt-orange brand accent), applied via `StatusPill`, so states read at a glance.
+- **Typography.** Refined system font stack for display/UI text and a real monospace for reference codes;
+  amounts use tabular figures.
+
 ## [0.8.0] - 2026-06-17
 
 ### Added
