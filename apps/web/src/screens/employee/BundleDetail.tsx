@@ -54,6 +54,68 @@ export function BundleDetail({ theme, state, nav, bundleId }: BundleDetailProps)
         </div>
       </div>
 
+      {b.status === 'rejected' && (
+        <div style={{ padding: '0 20px 16px' }}>
+          <div
+            style={{
+              padding: '14px 16px',
+              borderRadius: 12,
+              background: `${theme.danger}14`,
+              border: `1px solid ${theme.danger}40`,
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+            }}
+          >
+            <div
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                background: theme.danger,
+                flexShrink: 0,
+                marginTop: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontSize: 11,
+                fontFamily: FONT_UI,
+                fontWeight: 700,
+              }}
+            >
+              !
+            </div>
+            <div>
+              <div
+                style={{
+                  fontFamily: FONT_UI,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: theme.danger,
+                  letterSpacing: 0.2,
+                  marginBottom: b.rejectReason ? 4 : 0,
+                }}
+              >
+                ถูกปฏิเสธ
+              </div>
+              {b.rejectReason && (
+                <div
+                  style={{
+                    fontFamily: FONT_UI,
+                    fontSize: 13,
+                    color: theme.ink,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  เหตุผลที่ปฏิเสธ: {b.rejectReason}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ padding: '0 20px 20px' }}>
         <Card theme={theme} padding={20}>
           <Timeline theme={theme} bundle={b} />

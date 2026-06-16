@@ -36,6 +36,7 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmKind, setConfirmKind] = useState<ConfirmKind | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   if (!b) return null;
   const items = b.receipts;
@@ -65,18 +66,19 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
     }
   };
 
-  const handleReject = async () => {
+  const handleReject = async (reason: string) => {
     if (submitting) return;
     setError(null);
     setSubmitting(true);
     try {
-      const updated = await api.bundles.reject(b.id);
+      const updated = await api.bundles.reject(b.id, reason.trim() || undefined);
       applyServerUpdate(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setSubmitting(false);
       setConfirmKind(null);
+      setRejectReason('');
     }
   };
 
@@ -118,6 +120,24 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
           />
           {b.submitter.name}
         </div>
+        {b.status === 'rejected' && b.rejectReason && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: '8px 12px',
+              borderRadius: 8,
+              background: `${theme.danger}18`,
+              borderLeft: `3px solid ${theme.danger}`,
+              fontFamily: FONT_UI,
+              fontSize: 13,
+              color: theme.ink,
+              lineHeight: 1.5,
+            }}
+          >
+            <span style={{ fontWeight: 600, color: theme.danger, marginRight: 6 }}>เหตุผลที่ปฏิเสธ:</span>
+            {b.rejectReason}
+          </div>
+        )}
       </div>
 
       <div style={{ padding: '0 20px 8px' }}>
@@ -326,12 +346,48 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
         <ConfirmDialog
           theme={theme}
           title="ปฏิเสธคำขอนี้?"
-          message="คำขอนี้จะถูกปฏิเสธและแจ้งผู้ยื่น"
+          message={
+            <span>
+              <span style={{ display: 'block', marginBottom: 12 }}>
+                คำขอนี้จะถูกปฏิเสธและแจ้งผู้ยื่น
+              </span>
+              <label
+                style={{
+                  display: 'block',
+                  fontFamily: FONT_UI,
+                  fontSize: 12,
+                  color: theme.inkSoft,
+                  marginBottom: 6,
+                }}
+              >
+                เหตุผล (ถ้ามี)
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="ระบุเหตุผล..."
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  borderRadius: 8,
+                  background: theme.surface,
+                  border: `0.5px solid ${theme.hairlineStrong}`,
+                  fontFamily: FONT_UI,
+                  fontSize: 13,
+                  color: theme.ink,
+                  outline: 'none',
+                  resize: 'vertical',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </span>
+          }
           confirmLabel="ปฏิเสธ"
           danger
           loading={submitting}
-          onConfirm={handleReject}
-          onCancel={() => setConfirmKind(null)}
+          onConfirm={() => void handleReject(rejectReason)}
+          onCancel={() => { setConfirmKind(null); setRejectReason(''); }}
         />
       )}
     </div>

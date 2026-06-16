@@ -94,6 +94,7 @@ export function serializeBundle(bundle: PrismaBundle): SharedBundle {
     transferAmount: bundle.transferAmount === null ? null : Number(bundle.transferAmount),
     transferProofPath: bundle.transferProofPath,
     note: bundle.note,
+    rejectReason: bundle.rejectReason,
     createdAt: bundle.createdAt.toISOString(),
   };
 }

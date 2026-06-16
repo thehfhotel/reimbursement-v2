@@ -35,7 +35,8 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
   const [proof, setProof] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [confirmState, setConfirmState] = useState<{ open: boolean; kind: 'approve' | 'pay' }>({
+  const [rejectReason, setRejectReason] = useState('');
+  const [confirmState, setConfirmState] = useState<{ open: boolean; kind: 'approve' | 'pay' | 'reject' }>({
     open: false,
     kind: 'approve',
   });
@@ -92,17 +93,21 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
     }
   };
 
-  const handleReject = async (): Promise<void> => {
+  const handleReject = async (reason: string): Promise<void> => {
     if (!selectedBundle || submitting) return;
     setActionError(null);
     setSubmitting(true);
     try {
-      const updated = await api.bundles.reject(selectedBundle.id);
+      const updated = await api.bundles.reject(selectedBundle.id, reason.trim() || undefined);
       applyServerUpdate(updated);
+      setConfirmState((s) => ({ ...s, open: false }));
+      showToast('ปฏิเสธคำขอแล้ว');
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+      setConfirmState((s) => ({ ...s, open: false }));
     } finally {
       setSubmitting(false);
+      setRejectReason('');
     }
   };
 
@@ -174,7 +179,7 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
               items={items}
               total={total}
               onApprove={() => setConfirmState({ open: true, kind: 'approve' })}
-              onReject={handleReject}
+              onReject={() => setConfirmState({ open: true, kind: 'reject' })}
               onPay={() => setPayOpen(true)}
               onPhoto={(i) => setPhotoIdx(i)}
               submitting={submitting}
@@ -224,23 +229,66 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
           title={
             confirmState.kind === 'approve'
               ? `อนุมัติคำขอนี้?`
-              : `ยืนยันการจ่าย ฿${fmtN(total)}?`
+              : confirmState.kind === 'reject'
+                ? `ปฏิเสธคำขอนี้?`
+                : `ยืนยันการจ่าย ฿${fmtN(total)}?`
           }
           message={
             confirmState.kind === 'approve'
               ? `อนุมัติ ${fmt(total)} ให้ ${selectedBundle.submitter.name}`
-              : `จ่ายให้ ${selectedBundle.submitter.name} — การดำเนินการนี้ไม่สามารถยกเลิกได้`
+              : confirmState.kind === 'reject'
+                ? (
+                  <span>
+                    <span style={{ display: 'block', marginBottom: 12 }}>
+                      {`คำขอของ ${selectedBundle.submitter.name} จะถูกปฏิเสธ`}
+                    </span>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontFamily: FONT_UI,
+                        fontSize: 12,
+                        color: theme.inkSoft,
+                        marginBottom: 6,
+                      }}
+                    >
+                      เหตุผล (ถ้ามี)
+                    </label>
+                    <textarea
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      placeholder="ระบุเหตุผล..."
+                      rows={3}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        background: theme.surface,
+                        border: `0.5px solid ${theme.hairlineStrong}`,
+                        fontFamily: FONT_UI,
+                        fontSize: 13,
+                        color: theme.ink,
+                        outline: 'none',
+                        resize: 'vertical',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </span>
+                )
+                : `จ่ายให้ ${selectedBundle.submitter.name} — การดำเนินการนี้ไม่สามารถยกเลิกได้`
           }
-          confirmLabel={confirmState.kind === 'approve' ? 'อนุมัติ' : 'ยืนยัน'}
+          confirmLabel={confirmState.kind === 'approve' ? 'อนุมัติ' : confirmState.kind === 'reject' ? 'ปฏิเสธ' : 'ยืนยัน'}
+          danger={confirmState.kind === 'reject'}
           loading={submitting}
           onConfirm={() => {
             if (confirmState.kind === 'approve') {
               void handleApprove();
+            } else if (confirmState.kind === 'reject') {
+              void handleReject(rejectReason);
             } else {
               void confirmPay();
             }
           }}
-          onCancel={() => setConfirmState((s) => ({ ...s, open: false }))}
+          onCancel={() => { setConfirmState((s) => ({ ...s, open: false })); setRejectReason(''); }}
         />
       )}
 
@@ -621,6 +669,24 @@ function DesktopDetail({
             </div>
             {bundle.submitter.name} · ส่งเมื่อ {formatThaiDate(bundle.submittedAt)}
           </div>
+          {bundle.status === 'rejected' && bundle.rejectReason && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '8px 12px',
+                borderRadius: 8,
+                background: `${theme.danger}18`,
+                borderLeft: `3px solid ${theme.danger}`,
+                fontFamily: FONT_UI,
+                fontSize: 13,
+                color: theme.ink,
+                lineHeight: 1.5,
+              }}
+            >
+              <span style={{ fontWeight: 600, color: theme.danger, marginRight: 6 }}>เหตุผลที่ปฏิเสธ:</span>
+              {bundle.rejectReason}
+            </div>
+          )}
         </div>
         <div style={{ textAlign: 'right' }}>
           <div

@@ -74,6 +74,8 @@ export interface Bundle {
   /** URL path to attached transfer screenshot. */
   transferProofPath: string | null;
   note: string;
+  /** Why the bundle was rejected, if it was. */
+  rejectReason: string | null;
   createdAt: string;
 }
 

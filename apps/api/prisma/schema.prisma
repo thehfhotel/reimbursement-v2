@@ -86,6 +86,7 @@ model Bundle {
   transferAmount     Decimal?     @db.Decimal(12, 2)
   transferProofPath  String?
   note               String       @default("")
+  rejectReason       String?
   createdAt          DateTime     @default(now())
 
   receipts     Receipt[]

@@ -194,41 +194,50 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
     return serializeBundleWithDetails(updated);
   })
 
-  .post('/:id/reject', async ({ user, params, status }) => {
-    if (user.role !== 'APPROVER') {
-      return status(403, { message: 'Only approvers can reject bundles' });
-    }
+  .post(
+    '/:id/reject',
+    async ({ user, params, body, status }) => {
+      if (user.role !== 'APPROVER') {
+        return status(403, { message: 'Only approvers can reject bundles' });
+      }
 
-    const bundle = await prisma.bundle.findUnique({ where: { id: params.id } });
-    if (!bundle) {
-      return status(404, { message: 'Bundle not found' });
-    }
-    if (bundle.status !== 'PENDING') {
-      return status(409, {
-        message: `Cannot reject a ${bundle.status.toLowerCase()} bundle; only pending bundles can be rejected`,
+      const bundle = await prisma.bundle.findUnique({ where: { id: params.id } });
+      if (!bundle) {
+        return status(404, { message: 'Bundle not found' });
+      }
+      if (bundle.status !== 'PENDING') {
+        return status(409, {
+          message: `Cannot reject a ${bundle.status.toLowerCase()} bundle; only pending bundles can be rejected`,
+        });
+      }
+
+      const reason = body.reason?.trim() || null;
+
+      const updated = await prisma.$transaction(async (tx) => {
+        const result = await tx.bundle.update({
+          where: { id: params.id },
+          data: { status: 'REJECTED', rejectReason: reason },
+          include: { receipts: true, user: true, approver: true },
+        });
+
+        await tx.auditEvent.create({
+          data: {
+            type: 'reject',
+            bundleId: params.id,
+            actorId: user.id,
+            metadata: reason ? { reason } : {},
+          },
+        });
+
+        return result;
       });
-    }
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.bundle.update({
-        where: { id: params.id },
-        data: { status: 'REJECTED' },
-        include: { receipts: true, user: true, approver: true },
-      });
-
-      await tx.auditEvent.create({
-        data: {
-          type: 'reject',
-          bundleId: params.id,
-          actorId: user.id,
-        },
-      });
-
-      return result;
-    });
-
-    return serializeBundleWithDetails(updated);
-  })
+      return serializeBundleWithDetails(updated);
+    },
+    {
+      body: t.Object({ reason: t.Optional(t.String()) }),
+    },
+  )
 
   .post(
     '/:id/pay',

@@ -227,7 +227,10 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
         .map((b) => {
           const sum = b.receipts.reduce((acc, r) => acc + r.amount, 0);
           const statusLabel =
-            b.status === 'pending' ? 'รออนุมัติ' : b.status === 'approved' ? 'อนุมัติ' : 'จ่ายแล้ว';
+            b.status === 'pending' ? 'รออนุมัติ' :
+            b.status === 'approved' ? 'อนุมัติ' :
+            b.status === 'rejected' ? 'ปฏิเสธ' :
+            'จ่ายแล้ว';
           const isActive = selectedBundleId === b.id;
           return (
             <div
@@ -1344,6 +1347,55 @@ function BundleStatusBlock({ theme, bundle, total }: BundleStatusBlockProps) {
           </div>
         </div>
         <Money value={bundle.transferAmount ?? total} theme={theme} size={18} accent weight={600} />
+      </div>
+    );
+  }
+
+  if (bundle.status === 'rejected') {
+    return (
+      <div
+        style={{
+          padding: '14px 16px',
+          borderRadius: 10,
+          background: `${theme.danger}14`,
+          border: `1px solid ${theme.danger}40`,
+          display: 'flex',
+          gap: 12,
+          alignItems: 'flex-start',
+        }}
+      >
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            background: theme.danger,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontFamily: FONT_UI,
+            fontSize: 18,
+            fontWeight: 700,
+          }}
+        >
+          !
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: FONT_UI, fontSize: 14, fontWeight: 500, color: theme.danger }}>
+            ถูกปฏิเสธ
+          </div>
+          {bundle.rejectReason ? (
+            <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.ink, marginTop: 4, lineHeight: 1.5 }}>
+              เหตุผลที่ปฏิเสธ: {bundle.rejectReason}
+            </div>
+          ) : (
+            <div style={{ fontFamily: FONT_UI, fontSize: 12, color: theme.inkSoft, marginTop: 2 }}>
+              ไม่มีหมายเหตุเพิ่มเติม
+            </div>
+          )}
+        </div>
       </div>
     );
   }

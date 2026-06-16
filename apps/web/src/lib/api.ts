@@ -262,9 +262,11 @@ export const api = {
       request<BundleWithDetails>(`/api/bundles/${encodeURIComponent(id)}/approve`, {
         method: 'POST',
       }),
-    reject: (id: string): Promise<BundleWithDetails> =>
+    reject: (id: string, reason?: string): Promise<BundleWithDetails> =>
       request<BundleWithDetails>(`/api/bundles/${encodeURIComponent(id)}/reject`, {
         method: 'POST',
+        body: JSON.stringify({ reason }),
+        headers: { 'Content-Type': 'application/json' },
       }),
     pay: (id: string, form: FormData): Promise<BundleWithDetails> =>
       request<BundleWithDetails>(`/api/bundles/${encodeURIComponent(id)}/pay`, {
