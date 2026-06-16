@@ -13,7 +13,6 @@ import { ReceiptPhoto, ReceiptThumb } from '../../components/Receipts';
 // ── Constants for new (uploaded) receipts ────────────────────────────
 const NEW_RECEIPT_COLOR = '#F5EBD9';
 const NEW_RECEIPT_ACCENT = '#7E5E3A';
-const NEW_RECEIPT_DATE = new Date().toISOString().slice(0, 10);
 const NEW_RECEIPT_MERCHANT_FALLBACK = 'ใบเสร็จใหม่';
 const DEFAULT_BUNDLE_NAME = 'ค่าใช้จ่ายสัปดาห์นี้';
 const DETAIL_MAX_WIDTH = 840;
@@ -125,7 +124,7 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
           property: input.property,
           quantity: input.quantity,
           amount: input.amount,
-          date: NEW_RECEIPT_DATE,
+          date: input.date,
           note: input.note.trim() ? input.note.trim() : '',
           color: NEW_RECEIPT_COLOR,
           accent: NEW_RECEIPT_ACCENT,
@@ -1353,6 +1352,7 @@ interface NewReceiptInput {
   property: 'hf-hotel' | 'hf-ville';
   quantity: number | null;
   note: string;
+  date: string;
 }
 
 interface CreateReceiptModalProps {
@@ -1362,12 +1362,14 @@ interface CreateReceiptModalProps {
 }
 
 function CreateReceiptModal({ theme, onClose, onSave }: CreateReceiptModalProps): JSX.Element {
+  const modalToday = new Date().toISOString().slice(0, 10);
   const [photo, setPhoto] = useState<string | null>(null);
   const [amount, setAmount] = useState<string>('');
   const [merchant, setMerchant] = useState<string>('');
   const [category, setCategory] = useState<string>(RECEIPT_CATEGORIES[0]);
   const [property, setProperty] = useState<'hf-hotel' | 'hf-ville'>('hf-hotel');
   const [quantity, setQuantity] = useState<string>('');
+  const [date, setDate] = useState<string>(modalToday);
   const [note, setNote] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1402,6 +1404,7 @@ function CreateReceiptModal({ theme, onClose, onSave }: CreateReceiptModalProps)
       property,
       quantity: quantity ? parseInt(quantity, 10) : null,
       note,
+      date,
     });
   };
 
@@ -1724,18 +1727,16 @@ function CreateReceiptModal({ theme, onClose, onSave }: CreateReceiptModalProps)
               />
             </div>
 
-            {/* Date readonly */}
+            {/* Date editable */}
             <div style={{ marginBottom: 16 }}>
               <div style={sectionLabelStyle}>วันที่</div>
-              <div
-                style={{
-                  ...inputStyle,
-                  background: theme.surface2,
-                  color: theme.inkSoft,
-                }}
-              >
-                วันนี้ · {formatThaiDate(NEW_RECEIPT_DATE)}
-              </div>
+              <input
+                type="date"
+                value={date}
+                max={modalToday}
+                onChange={(e) => setDate(e.target.value || modalToday)}
+                style={inputStyle}
+              />
             </div>
 
             {/* Note */}

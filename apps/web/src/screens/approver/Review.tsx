@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AppState, BundleWithDetails, Receipt, Theme } from '../../lib/types';
 import type { Nav } from '../../lib/router';
 import { fmt, fmtN, formatThaiDate } from '../../lib/format';
@@ -17,6 +17,7 @@ import {
 } from '../../components/primitives';
 import { Icon } from '../../components/icons';
 import { ReceiptPhoto, ReceiptThumb } from '../../components/Receipts';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 interface ReviewProps {
   theme: Theme;
@@ -26,12 +27,15 @@ interface ReviewProps {
   setState: (updater: (s: AppState) => AppState) => void;
 }
 
+type ConfirmKind = 'approve' | 'reject';
+
 export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
   const found = state.bundles.find((x) => x.id === bundleId);
   const [b, setB] = useState<BundleWithDetails | undefined>(found);
   const [photoIdx, setPhotoIdx] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmKind, setConfirmKind] = useState<ConfirmKind | null>(null);
 
   if (!b) return null;
   const items = b.receipts;
@@ -57,6 +61,7 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setSubmitting(false);
+      setConfirmKind(null);
     }
   };
 
@@ -71,6 +76,7 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
       setSubmitting(false);
+      setConfirmKind(null);
     }
   };
 
@@ -251,12 +257,12 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
             </div>
           )}
           <div style={{ display: 'flex', gap: 10 }}>
-            <GhostButton theme={theme} onClick={handleReject}>
-              {submitting ? 'กำลัง...' : 'ปฏิเสธ'}
+            <GhostButton theme={theme} onClick={() => setConfirmKind('reject')}>
+              ปฏิเสธ
             </GhostButton>
             <div style={{ flex: 1 }}>
-              <PrimaryButton theme={theme} onClick={handleApprove} disabled={submitting}>
-                {submitting ? 'กำลัง...' : `อนุมัติ · ${fmt(total)}`}
+              <PrimaryButton theme={theme} onClick={() => setConfirmKind('approve')} disabled={submitting}>
+                {`อนุมัติ · ${fmt(total)}`}
               </PrimaryButton>
             </div>
           </div>
@@ -303,6 +309,31 @@ export function Review({ theme, state, nav, bundleId, setState }: ReviewProps) {
           </Card>
         </div>
       )}
+
+      {confirmKind === 'approve' && (
+        <ConfirmDialog
+          theme={theme}
+          title="อนุมัติคำขอนี้?"
+          message={`ยืนยันการอนุมัติยอด ${fmt(total)}`}
+          confirmLabel="อนุมัติ"
+          loading={submitting}
+          onConfirm={handleApprove}
+          onCancel={() => setConfirmKind(null)}
+        />
+      )}
+
+      {confirmKind === 'reject' && (
+        <ConfirmDialog
+          theme={theme}
+          title="ปฏิเสธคำขอนี้?"
+          message="คำขอนี้จะถูกปฏิเสธและแจ้งผู้ยื่น"
+          confirmLabel="ปฏิเสธ"
+          danger
+          loading={submitting}
+          onConfirm={handleReject}
+          onCancel={() => setConfirmKind(null)}
+        />
+      )}
     </div>
   );
 }
@@ -315,20 +346,58 @@ interface PhotoLightboxProps {
 }
 
 function PhotoLightbox({ items, index, onClose, setIndex }: PhotoLightboxProps) {
+  const [zoomed, setZoomed] = useState(false);
   const r = items[index];
+
+  // Reset zoom when navigating
+  useEffect(() => {
+    setZoomed(false);
+  }, [index]);
+
+  // Esc to close, arrow keys to navigate
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'ArrowLeft' && index > 0) { setIndex(index - 1); return; }
+      if (e.key === 'ArrowRight' && index < items.length - 1) { setIndex(index + 1); return; }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [index, items.length, onClose, setIndex]);
+
   if (!r) return null;
+
+  const hasPrev = index > 0;
+  const hasNext = index < items.length - 1;
+
   return (
     <div
+      onClick={onClose}
       style={{
-        position: 'absolute',
+        position: 'fixed',
         inset: 0,
         background: 'rgba(10,8,5,0.96)',
-        zIndex: 100,
+        zIndex: 200,
         display: 'flex',
         flexDirection: 'column',
       }}
     >
-      <div style={{ padding: '54px 20px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Header: close + counter */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          padding: '54px 20px 20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ width: 36 }} />
+        <div style={{ fontFamily: FONT_UI, fontSize: 13, color: '#fff', opacity: 0.7 }}>
+          {index + 1} / {items.length}
+        </div>
+        {/* × close button top-right */}
         <button
           onClick={onClose}
           style={{
@@ -346,23 +415,70 @@ function PhotoLightbox({ items, index, onClose, setIndex }: PhotoLightboxProps) 
         >
           {Icon.close('#fff')}
         </button>
-        <div style={{ fontFamily: FONT_UI, fontSize: 13, color: '#fff', opacity: 0.7 }}>
-          {index + 1} / {items.length}
-        </div>
-        <div style={{ width: 36 }} />
       </div>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        <ReceiptPhoto receipt={r} height={420} />
+
+      {/* Image area — tap toggles zoom */}
+      <div
+        onClick={(e) => { e.stopPropagation(); setZoomed((z) => !z); }}
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 20,
+          overflow: 'hidden',
+          cursor: zoomed ? 'zoom-out' : 'zoom-in',
+        }}
+      >
+        {r.photoPath ? (
+          <img
+            src={r.photoPath}
+            alt={r.merchant}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              borderRadius: 8,
+              transform: zoomed ? 'scale(2)' : 'scale(1)',
+              transition: 'transform 0.25s ease',
+              transformOrigin: 'center',
+            }}
+            draggable={false}
+          />
+        ) : (
+          // No-photo fallback
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 12,
+              opacity: 0.5,
+            }}
+          >
+            <ReceiptPhoto receipt={r} height={280} />
+            <div style={{ fontFamily: FONT_UI, fontSize: 14, color: '#fff', marginTop: 8 }}>
+              ไม่มีรูปใบเสร็จ
+            </div>
+          </div>
+        )}
       </div>
-      <div style={{ padding: '0 20px 28px', textAlign: 'center', color: '#fff' }}>
-        <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, marginBottom: 4 }}>{r.merchant}</div>
-        <div style={{ fontFamily: FONT_UI, fontSize: 12, opacity: 0.6, marginBottom: 14 }}>
-          {r.category} · {formatThaiDate(r.date)} · {fmt(r.amount)}
+
+      {/* Footer: merchant info + prev/next */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ padding: '0 20px 36px', flexShrink: 0 }}
+      >
+        <div style={{ textAlign: 'center', color: '#fff', marginBottom: 16 }}>
+          <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, marginBottom: 4 }}>{r.merchant}</div>
+          <div style={{ fontFamily: FONT_UI, fontSize: 12, opacity: 0.6 }}>
+            {r.category} · {formatThaiDate(r.date)} · {fmt(r.amount)}
+          </div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
           <button
-            onClick={() => setIndex(Math.max(0, index - 1))}
-            disabled={index === 0}
+            onClick={() => hasPrev && setIndex(index - 1)}
+            disabled={!hasPrev}
             style={{
               padding: '10px 16px',
               borderRadius: 100,
@@ -371,15 +487,15 @@ function PhotoLightbox({ items, index, onClose, setIndex }: PhotoLightboxProps) 
               color: '#fff',
               fontFamily: FONT_UI,
               fontSize: 13,
-              cursor: 'pointer',
-              opacity: index === 0 ? 0.3 : 1,
+              cursor: hasPrev ? 'pointer' : 'default',
+              opacity: hasPrev ? 1 : 0.3,
             }}
           >
             ← ก่อนหน้า
           </button>
           <button
-            onClick={() => setIndex(Math.min(items.length - 1, index + 1))}
-            disabled={index === items.length - 1}
+            onClick={() => hasNext && setIndex(index + 1)}
+            disabled={!hasNext}
             style={{
               padding: '10px 16px',
               borderRadius: 100,
@@ -388,14 +504,15 @@ function PhotoLightbox({ items, index, onClose, setIndex }: PhotoLightboxProps) 
               color: '#fff',
               fontFamily: FONT_UI,
               fontSize: 13,
-              cursor: 'pointer',
-              opacity: index === items.length - 1 ? 0.3 : 1,
+              cursor: hasNext ? 'pointer' : 'default',
+              opacity: hasNext ? 1 : 0.3,
             }}
           >
             ถัดไป →
           </button>
         </div>
       </div>
+
     </div>
   );
 }
@@ -430,4 +547,3 @@ function BankReceipt({ theme, bundle }: BankReceiptProps) {
     </div>
   );
 }
-

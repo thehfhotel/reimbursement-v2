@@ -37,9 +37,10 @@ interface PrimaryButtonProps {
   theme: Theme;
   disabled?: boolean;
   full?: boolean;
+  style?: CSSProperties;
 }
 
-export function PrimaryButton({ children, onClick, theme, disabled, full = true }: PrimaryButtonProps) {
+export function PrimaryButton({ children, onClick, theme, disabled, full = true, style }: PrimaryButtonProps) {
   const [pressed, setPressed] = useState(false);
   return (
     <button
@@ -63,6 +64,7 @@ export function PrimaryButton({ children, onClick, theme, disabled, full = true 
         transition: 'transform 0.08s ease, opacity 0.15s',
         opacity: disabled ? 0.6 : 1,
         transform: pressed && !disabled ? 'scale(0.98)' : 'scale(1)',
+        ...style,
       }}
     >
       {children}

@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-06-17
+
+### Added
+- **Confirmation dialogs before approving, rejecting, and paying** — money actions now require an explicit
+  confirm (new shared `ConfirmDialog`), preventing costly mis-taps.
+- **Editable receipt date** (defaults to today, capped at today) on both the mobile and desktop create flows.
+
+### Changed
+- The receipt-photo **lightbox** is now a true full-viewport overlay with tap-to-zoom, prev/next, keyboard
+  control (Esc / ← / →), a visible close button, and a "ไม่มีรูปใบเสร็จ" fallback when a receipt has no photo.
+
 ## [0.4.0] - 2026-06-17
 
 ### Added

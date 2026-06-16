@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, CSSProperties, ReactNode } from 'react';
 import type { AppState, BundleStatus, BundleWithDetails, Receipt, Theme, User } from '../../lib/types';
 import { fmt, fmt0, fmtN, formatThaiDate } from '../../lib/format';
@@ -9,6 +9,7 @@ import { DesktopShell, SidebarItem } from '../../components/DesktopShell';
 import { Card, GhostButton, Money, PrimaryButton, StatusPill } from '../../components/primitives';
 import { Icon } from '../../components/icons';
 import { ReceiptPhoto, ReceiptThumb } from '../../components/Receipts';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 const TABLE_GRID_COLUMNS = '1.2fr 1fr 1fr 100px';
 const DETAIL_MAX_WIDTH = 840;
@@ -32,6 +33,10 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
   const [proof, setProof] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; kind: 'approve' | 'pay' }>({
+    open: false,
+    kind: 'approve',
+  });
 
   const allBundles: BundleWithDetails[] = state.bundles;
 
@@ -74,8 +79,10 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
     try {
       const updated = await api.bundles.approve(selectedBundle.id);
       applyServerUpdate(updated);
+      setConfirmState((s) => ({ ...s, open: false }));
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+      setConfirmState((s) => ({ ...s, open: false }));
     } finally {
       setSubmitting(false);
     }
@@ -112,9 +119,11 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
         payFormFromFields(transferRefInput.trim(), proofFile),
       );
       applyServerUpdate(updated);
+      setConfirmState((s) => ({ ...s, open: false }));
       closePaySheet();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+      setConfirmState((s) => ({ ...s, open: false }));
     } finally {
       setSubmitting(false);
     }
@@ -159,7 +168,7 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
               bundle={selectedBundle}
               items={items}
               total={total}
-              onApprove={handleApprove}
+              onApprove={() => setConfirmState({ open: true, kind: 'approve' })}
               onReject={handleReject}
               onPay={() => setPayOpen(true)}
               onPhoto={(i) => setPhotoIdx(i)}
@@ -196,13 +205,39 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
               proof={proof}
               setProof={setProof}
               onClose={closePaySheet}
-              onConfirm={confirmPay}
+              onConfirm={() => setConfirmState({ open: true, kind: 'pay' })}
               submitting={submitting}
               actionError={actionError}
             />
           )}
         </div>
       </div>
+
+      {confirmState.open && selectedBundle && (
+        <ConfirmDialog
+          theme={theme}
+          title={
+            confirmState.kind === 'approve'
+              ? `อนุมัติคำขอนี้?`
+              : `ยืนยันการจ่าย ฿${fmtN(total)}?`
+          }
+          message={
+            confirmState.kind === 'approve'
+              ? `อนุมัติ ${fmt(total)} ให้ ${selectedBundle.submitter.name}`
+              : `จ่ายให้ ${selectedBundle.submitter.name} — การดำเนินการนี้ไม่สามารถยกเลิกได้`
+          }
+          confirmLabel={confirmState.kind === 'approve' ? 'อนุมัติ' : 'ยืนยัน'}
+          loading={submitting}
+          onConfirm={() => {
+            if (confirmState.kind === 'approve') {
+              void handleApprove();
+            } else {
+              void confirmPay();
+            }
+          }}
+          onCancel={() => setConfirmState((s) => ({ ...s, open: false }))}
+        />
+      )}
     </DesktopShell>
   );
 }
@@ -966,70 +1001,205 @@ interface PhotoLightboxProps {
   onNext: () => void;
 }
 
-function PhotoLightbox({ theme, items, index, onClose, onPrev, onNext }: PhotoLightboxProps): JSX.Element {
+function PhotoLightbox({ theme: _theme, items, index, onClose, onPrev, onNext }: PhotoLightboxProps): JSX.Element {
   const current = items[index];
+  const [zoomed, setZoomed] = useState(false);
+  const hasPrev = index > 0;
+  const hasNext = index < items.length - 1;
+
+  // Reset zoom when slide changes
+  useEffect(() => {
+    setZoomed(false);
+  }, [index]);
+
+  // Keyboard navigation: Esc closes, ← / → navigates
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft' && hasPrev) onPrev();
+      if (e.key === 'ArrowRight' && hasNext) onNext();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onClose, onPrev, onNext, hasPrev, hasNext]);
+
   return (
     <div
       onClick={onClose}
       style={{
-        position: 'absolute',
+        position: 'fixed',
         inset: 0,
         background: 'rgba(10,8,5,0.95)',
-        zIndex: 50,
+        zIndex: 200,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        cursor: 'pointer',
       }}
     >
+      {/* Close button — top right */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+        style={{
+          position: 'absolute',
+          top: 20,
+          right: 20,
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          background: 'rgba(255,255,255,0.15)',
+          border: 'none',
+          color: '#fff',
+          fontSize: 20,
+          lineHeight: 1,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10,
+        }}
+      >
+        ×
+      </button>
+
+      {/* Prev button */}
+      {hasPrev && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onPrev(); }}
+          style={navButtonStyle('left')}
+        >
+          ‹
+        </button>
+      )}
+
+      {/* Image / no-photo area */}
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 }}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 18,
+          maxWidth: '90vw',
+          maxHeight: '90vh',
+        }}
       >
-        {current && <ReceiptPhoto receipt={current} height={460} />}
+        {current ? (
+          current.photoPath ? (
+            <div
+              onClick={() => setZoomed((z) => !z)}
+              style={{
+                cursor: zoomed ? 'zoom-out' : 'zoom-in',
+                transition: 'transform 0.25s ease',
+                transform: zoomed ? 'scale(2)' : 'scale(1)',
+                transformOrigin: 'center center',
+                maxWidth: '80vw',
+                maxHeight: '80vh',
+              }}
+            >
+              <img
+                src={current.photoPath}
+                alt={current.merchant}
+                style={{
+                  maxWidth: '80vw',
+                  maxHeight: '80vh',
+                  objectFit: 'contain',
+                  borderRadius: 8,
+                  display: 'block',
+                  boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
+                }}
+              />
+            </div>
+          ) : (
+            <div
+              onClick={() => setZoomed((z) => !z)}
+              style={{
+                cursor: zoomed ? 'zoom-out' : 'zoom-in',
+                transition: 'transform 0.25s ease',
+                transform: zoomed ? 'scale(1.5)' : 'scale(1)',
+                transformOrigin: 'center center',
+              }}
+            >
+              <ReceiptPhoto receipt={current} height={460} />
+            </div>
+          )
+        ) : (
+          // No-photo fallback
+          <div
+            style={{
+              width: 220,
+              height: 300,
+              borderRadius: 12,
+              background: 'rgba(255,255,255,0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              color: 'rgba(255,255,255,0.5)',
+            }}
+          >
+            <div style={{ fontSize: 40, opacity: 0.4 }}>🧾</div>
+            <div style={{ fontFamily: FONT_UI, fontSize: 13, textAlign: 'center' }}>
+              ไม่มีรูปใบเสร็จ
+            </div>
+          </div>
+        )}
+
+        {/* Counter + merchant label */}
         <div
           style={{
             display: 'flex',
-            gap: 12,
             alignItems: 'center',
-            color: '#fff',
+            gap: 12,
             fontFamily: FONT_UI,
             fontSize: 12,
+            color: 'rgba(255,255,255,0.7)',
           }}
         >
-          <button onClick={onPrev} disabled={index === 0} style={lightboxButtonStyle(theme, index === 0)}>
-            ← ก่อนหน้า
-          </button>
-          <span style={{ opacity: 0.7 }}>
+          <span style={{ fontFamily: FONT_MONO }}>
             {index + 1} / {items.length}
           </span>
-          <button
-            onClick={onNext}
-            disabled={index === items.length - 1}
-            style={lightboxButtonStyle(theme, index === items.length - 1)}
-          >
-            ถัดไป →
-          </button>
-          <button onClick={onClose} style={{ ...lightboxButtonStyle(theme, false), marginLeft: 12 }}>
-            ปิด
-          </button>
+          {current && (
+            <>
+              <span style={{ opacity: 0.4 }}>·</span>
+              <span>{current.merchant}</span>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Next button */}
+      {hasNext && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onNext(); }}
+          style={navButtonStyle('right')}
+        >
+          ›
+        </button>
+      )}
     </div>
   );
 }
 
-function lightboxButtonStyle(_theme: Theme, disabled: boolean): CSSProperties {
+function navButtonStyle(side: 'left' | 'right'): CSSProperties {
   return {
-    padding: '8px 14px',
-    borderRadius: 100,
-    background: 'rgba(255,255,255,0.12)',
+    position: 'absolute',
+    top: '50%',
+    [side]: 20,
+    transform: 'translateY(-50%)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    background: 'rgba(255,255,255,0.15)',
     border: 'none',
     color: '#fff',
-    fontFamily: FONT_UI,
-    fontSize: 12,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.3 : 1,
+    fontSize: 28,
+    lineHeight: 1,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   };
 }
 

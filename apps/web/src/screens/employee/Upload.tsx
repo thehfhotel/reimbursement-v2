@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import type { AppState, Property, Theme } from '../../lib/types';
 import type { Nav } from '../../lib/router';
 import { RECEIPT_CATEGORIES } from '../../lib/types';
-import { fmt, formatThaiDate } from '../../lib/format';
+import { fmt } from '../../lib/format';
 import { FONT_DISPLAY, FONT_UI } from '../../lib/theme';
 import { api, receiptFormFromFields } from '../../lib/api';
 import { AppBar } from '../../components/AppBar';
@@ -37,6 +37,7 @@ export function Upload({ theme, nav, setState }: UploadProps) {
   const [property, setProperty] = useState<Property>('hf-hotel');
   const [quantity, setQuantity] = useState('');
   const [note, setNote] = useState('');
+  const [date, setDate] = useState<string>(todayIso());
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -63,7 +64,7 @@ export function Upload({ theme, nav, setState }: UploadProps) {
         property,
         quantity: quantity ? parseInt(quantity, 10) : null,
         amount: parseFloat(amount),
-        date: today,
+        date: date,
         note,
         color: palette[0],
         accent: palette[1],
@@ -249,7 +250,38 @@ export function Upload({ theme, nav, setState }: UploadProps) {
           onChange={(v) => setQuantity(v.replace(/[^0-9]/g, ''))}
           placeholder="เช่น 4"
         />
-        <FormRow theme={theme} label="วันที่" value={`วันนี้ · ${formatThaiDate(today)}`} readOnly />
+        <div style={{ marginBottom: 18 }}>
+          <div
+            style={{
+              fontFamily: FONT_UI,
+              fontSize: 11,
+              color: theme.inkSoft,
+              letterSpacing: 1.4,
+              textTransform: 'uppercase',
+              marginBottom: 8,
+            }}
+          >
+            วันที่
+          </div>
+          <input
+            type="date"
+            value={date}
+            max={today}
+            onChange={(e) => setDate(e.target.value || today)}
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: 12,
+              background: theme.surface,
+              border: `0.5px solid ${theme.hairlineStrong}`,
+              fontFamily: FONT_UI,
+              fontSize: 15,
+              color: theme.ink,
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
         <FormRow theme={theme} label="หมายเหตุ" value={note} onChange={setNote} placeholder="หมายเหตุ (ถ้ามี)" multiline />
       </div>
 

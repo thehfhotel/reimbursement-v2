@@ -8,6 +8,7 @@ import { AppBar } from '../../components/AppBar';
 import { Card, IconBtn, Money, PrimaryButton, SectionHeader } from '../../components/primitives';
 import { Icon } from '../../components/icons';
 import { FormRow } from '../../components/FormRow';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 interface PayProps {
   theme: Theme;
@@ -25,6 +26,7 @@ export function Pay({ theme, state, nav, bundleId, setState }: PayProps) {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!b) return null;
@@ -48,9 +50,11 @@ export function Pay({ theme, state, nav, bundleId, setState }: PayProps) {
         ...s,
         bundles: s.bundles.map((x) => (x.id === updated.id ? updated : x)),
       }));
+      setConfirmOpen(false);
       setStep('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+      setConfirmOpen(false);
     } finally {
       setSubmitting(false);
     }
@@ -295,11 +299,23 @@ export function Pay({ theme, state, nav, bundleId, setState }: PayProps) {
         <PrimaryButton
           theme={theme}
           disabled={!proofFile || !ref.trim() || submitting}
-          onClick={handleConfirmPay}
+          onClick={() => setConfirmOpen(true)}
         >
           {submitting ? 'กำลังบันทึก...' : `ยืนยันการจ่าย · ${fmt(total)}`}
         </PrimaryButton>
       </div>
+
+      {confirmOpen && (
+        <ConfirmDialog
+          theme={theme}
+          title={`ยืนยันว่าโอนแล้ว ฿${fmt(total)}?`}
+          message={`จ่ายให้ ${b.submitter.name} — การดำเนินการนี้ไม่สามารถยกเลิกได้`}
+          confirmLabel="ยืนยัน"
+          loading={submitting}
+          onConfirm={() => { void handleConfirmPay(); }}
+          onCancel={() => setConfirmOpen(false)}
+        />
+      )}
     </div>
   );
 }
