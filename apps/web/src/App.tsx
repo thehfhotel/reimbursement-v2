@@ -30,6 +30,8 @@ import { Login } from './screens/auth/Login';
 import { Callback } from './screens/auth/Callback';
 import { LinkAccount } from './screens/auth/LinkAccount';
 import { ManageEmployees } from './screens/approver/ManageEmployees';
+import { BottomNav } from './components/BottomNav';
+import type { BottomNavRoute } from './components/BottomNav';
 
 const TWEAK_DEFAULTS: Tweaks = {
   role: 'employee',
@@ -257,12 +259,56 @@ export function App() {
   }
 
   if (route.name === 'admin-employees') {
+    const adminRole = currentUser?.role ?? tweaks.role;
+    const showAdminBottomNav = platform === 'mobile';
+    const adminMobileShell = (
+      <>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: theme.paper,
+            overflow: 'auto',
+            paddingBottom: showAdminBottomNav ? 56 : 0,
+          }}
+        >
+          <ManageEmployees
+            theme={theme}
+            onBack={() => setRoute({ name: 'approver-home' })}
+          />
+        </div>
+        {showAdminBottomNav && (
+          <BottomNav
+            role={adminRole}
+            activeRoute="admin-employees"
+            theme={theme}
+            onNavigate={(r) => setRoute({ name: r } as Route)}
+          />
+        )}
+      </>
+    );
+    if (platform !== 'mobile') {
+      return (
+        <>
+          <ManageEmployees
+            theme={theme}
+            onBack={() => setRoute({ name: 'approver-home' })}
+          />
+          {IS_DEV && <TweaksPanel tweaks={tweaks} onChange={setTweak} onJump={onJump} />}
+        </>
+      );
+    }
     return (
       <>
-        <ManageEmployees
-          theme={theme}
-          onBack={() => setRoute({ name: 'approver-home' })}
-        />
+        {IS_DEV ? (
+          <IOSDevice dark={tweaks.dark} width={402} height={874}>
+            {adminMobileShell}
+          </IOSDevice>
+        ) : (
+          <div style={{ position: 'fixed', inset: 0, background: theme.paper, overflow: 'hidden' }}>
+            {adminMobileShell}
+          </div>
+        )}
         {IS_DEV && <TweaksPanel tweaks={tweaks} onChange={setTweak} onJump={onJump} />}
       </>
     );
@@ -295,9 +341,17 @@ export function App() {
   const reqSetState = role === 'approver' ? setMyState : setState;
 
   const screen = renderScreen({ route, theme, state, setState, reqState, reqSetState, nav, role, currentUser });
+
+  // Bottom nav is visible on top-level screens only (not sub-screens or auth).
+  const BOTTOM_NAV_ROUTES = new Set<Route['name']>(['home', 'approver-home', 'my-requests']);
+  const showBottomNav = platform === 'mobile' && BOTTOM_NAV_ROUTES.has(route.name);
+  const handleBottomNav = (r: BottomNavRoute) => setRoute({ name: r } as Route);
+
   // FAB is mobile-only; desktop home has the explicit + button in the AppBar.
+  // Hide the FAB when the bottom nav is visible (it includes the "เพิ่ม" entry).
   const showFab =
     platform === 'mobile' &&
+    !showBottomNav &&
     inRequestorMode &&
     (route.name === 'home' || route.name === 'my-requests' || route.name === 'record');
 
@@ -339,10 +393,19 @@ export function App() {
           inset: 0,
           background: theme.paper,
           overflow: 'auto',
+          paddingBottom: showBottomNav ? 56 : 0,
         }}
       >
         {screen}
       </div>
+      {showBottomNav && (
+        <BottomNav
+          role={role}
+          activeRoute={route.name as BottomNavRoute}
+          theme={theme}
+          onNavigate={handleBottomNav}
+        />
+      )}
       {showFab && (
         <button
           onClick={() => setRoute({ name: 'upload' })}

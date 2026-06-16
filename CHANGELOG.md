@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-06-17
+
+### Added
+- **Mobile bottom navigation** (role-aware, persistent on top-level screens): employees get คำขอ / เพิ่ม;
+  approvers get กล่องอนุมัติ / คำขอของฉัน / พนักงาน — making admin and "my requests" reachable on mobile.
+- **Rejected (ปฏิเสธ) tab** on the mobile inbox.
+- **Mobile-friendly admin**: the employee manager renders as stacked cards with bottom-sheet modals on phones
+  (the table layout is kept on desktop).
+
 ## [0.9.0] - 2026-06-17
 
 ### Changed

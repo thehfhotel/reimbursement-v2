@@ -16,16 +16,24 @@ interface InboxProps {
   currentUser: User | null;
 }
 
-type TabKey = Extract<BundleStatus, 'pending' | 'approved' | 'paid'>;
+type TabKey = Extract<BundleStatus, 'pending' | 'approved' | 'paid' | 'rejected'>;
 
 export function Inbox({ theme, state, nav, currentUser }: InboxProps) {
   const allBundles: BundleWithDetails[] = state.bundles;
   const pending = allBundles.filter((b) => b.status === 'pending');
   const approved = allBundles.filter((b) => b.status === 'approved');
   const paid = allBundles.filter((b) => b.status === 'paid');
+  const rejected = allBundles.filter((b) => b.status === 'rejected');
   const [tab, setTab] = useState<TabKey>('pending');
 
-  const list = tab === 'pending' ? pending : tab === 'approved' ? approved : paid;
+  const list =
+    tab === 'pending'
+      ? pending
+      : tab === 'approved'
+        ? approved
+        : tab === 'paid'
+          ? paid
+          : rejected;
   const totalPending = pending.reduce(
     (s, b) => s + b.receipts.reduce((a, r) => a + r.amount, 0),
     0,
@@ -35,6 +43,7 @@ export function Inbox({ theme, state, nav, currentUser }: InboxProps) {
     ['pending', 'รออนุมัติ', pending.length],
     ['approved', 'อนุมัติแล้ว', approved.length],
     ['paid', 'จ่ายแล้ว', paid.length],
+    ['rejected', 'ปฏิเสธ', rejected.length],
   ];
 
   return (
@@ -142,7 +151,7 @@ export function Inbox({ theme, state, nav, currentUser }: InboxProps) {
               fontSize: 13,
               fontWeight: 500,
               color: tab === k ? theme.ink : theme.inkSoft,
-              borderBottom: `2px solid ${tab === k ? theme.accent : 'transparent'}`,
+              borderBottom: `2px solid ${tab === k ? (k === 'rejected' ? theme.statusRejected : theme.accent) : 'transparent'}`,
               cursor: 'pointer',
               marginBottom: -0.5,
             }}

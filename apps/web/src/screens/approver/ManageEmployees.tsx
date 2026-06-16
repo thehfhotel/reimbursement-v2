@@ -4,8 +4,10 @@ import { ApiError, api } from '../../lib/api';
 import { formatExpiry, formatThaiDate } from '../../lib/format';
 import { FONT_DISPLAY, FONT_MONO, FONT_UI } from '../../lib/theme';
 import type { AdminUser, CreateUserRequest, Role, Theme, UpdateUserRequest } from '../../lib/types';
+import { useViewportPlatform } from '../../lib/useViewportPlatform';
 import { DesktopShell, SidebarItem } from '../../components/DesktopShell';
-import { Card, GhostButton, IconBtn, PrimaryButton } from '../../components/primitives';
+import { AppBar } from '../../components/AppBar';
+import { Avatar, Card, GhostButton, IconBtn, PrimaryButton } from '../../components/primitives';
 import { Icon } from '../../components/icons';
 
 const LINE_CODE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -32,6 +34,9 @@ interface ToastMessage {
 }
 
 export function ManageEmployees({ theme, onBack }: ManageEmployeesProps): JSX.Element {
+  const platform = useViewportPlatform();
+  const isMobile = platform === 'mobile';
+
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -166,6 +171,180 @@ export function ManageEmployees({ theme, onBack }: ManageEmployeesProps): JSX.El
     }
   };
 
+  const sharedUserListProps = {
+    menuFor,
+    onMenuToggle: (id: string) => setMenuFor((prev) => (prev === id ? null : id)),
+    onMenuClose: () => setMenuFor(null),
+    onEdit: (u: AdminUser) => {
+      setEditing(u);
+      setMenuFor(null);
+    },
+    onRegenerate: (u: AdminUser) => {
+      setRegenerateTarget(u);
+      setMenuFor(null);
+    },
+    onDelete: (u: AdminUser) => {
+      setDeleteTarget(u);
+      setMenuFor(null);
+    },
+    onGenerate: (u: AdminUser) => void handleGenerateCode(u),
+    onShowCode: (u: AdminUser) => {
+      if (u.lineLinkingCode && u.lineLinkingCodeGeneratedAt) {
+        setCodeDisplay({
+          userId: u.id,
+          userName: u.name,
+          code: u.lineLinkingCode,
+          expiresAt: codeExpiry(u.lineLinkingCodeGeneratedAt),
+        });
+      }
+    },
+  };
+
+  const modals = (
+    <>
+      {createOpen && (
+        <UserFormModal
+          theme={theme}
+          mode="create"
+          isMobile={isMobile}
+          onClose={() => setCreateOpen(false)}
+          onSubmit={(req) => void handleCreate(req)}
+        />
+      )}
+
+      {editing && (
+        <UserFormModal
+          theme={theme}
+          mode="edit"
+          isMobile={isMobile}
+          initial={editing}
+          onClose={() => setEditing(null)}
+          onSubmit={(req) => void handleEdit(editing.id, req)}
+        />
+      )}
+
+      {codeDisplay && (
+        <CodeDisplayModal
+          theme={theme}
+          isMobile={isMobile}
+          display={codeDisplay}
+          onClose={() => setCodeDisplay(null)}
+        />
+      )}
+
+      {regenerateTarget && (
+        <ConfirmModal
+          theme={theme}
+          isMobile={isMobile}
+          title="สร้างรหัสใหม่?"
+          body={`การสร้างรหัสใหม่จะยกเลิกการเชื่อมต่อ LINE ปัจจุบันของ ${regenerateTarget.name} (ถ้ามี) และสร้างรหัส 6 หลักใหม่`}
+          confirmLabel="สร้างรหัสใหม่"
+          confirmTone="warn"
+          onCancel={() => setRegenerateTarget(null)}
+          onConfirm={() => {
+            const target = regenerateTarget;
+            setRegenerateTarget(null);
+            void handleGenerateCode(target);
+          }}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          theme={theme}
+          isMobile={isMobile}
+          title={`ลบ ${deleteTarget.name}?`}
+          body="พนักงานคนนี้จะถูกลบออกจากระบบ การกระทำนี้ไม่สามารถย้อนกลับได้"
+          confirmLabel="ลบพนักงาน"
+          confirmTone="danger"
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => {
+            const target = deleteTarget;
+            void handleDelete(target);
+          }}
+        />
+      )}
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: theme.paper, position: 'relative' }}>
+        {toast && <Toast theme={theme} message={toast} onClose={() => setToast(null)} />}
+
+        <AppBar
+          theme={theme}
+          large
+          subtitle="การจัดการ"
+          title="พนักงาน"
+          leading={
+            <button
+              onClick={handleBack}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '4px 0',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                color: theme.accent,
+                fontFamily: FONT_UI,
+                fontSize: 14,
+              }}
+            >
+              {Icon.back(theme.accent)}
+              <span>กลับ</span>
+            </button>
+          }
+          trailing={
+            <button
+              onClick={() => setCreateOpen(true)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '4px 0',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                color: theme.accent,
+                fontFamily: FONT_UI,
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              {Icon.plus(theme.accent)}
+              <span>เพิ่ม</span>
+            </button>
+          }
+        />
+
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' } as CSSProperties}>
+          <div style={{ padding: '8px 16px 100px' }}>
+            <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.inkSoft, marginBottom: 16 }}>
+              {users.length} คน
+            </div>
+
+            {loading ? (
+              <SkeletonRows theme={theme} />
+            ) : users.length === 0 ? (
+              <MobileEmptyState theme={theme} />
+            ) : (
+              <MobileEmployeeList
+                theme={theme}
+                users={users}
+                {...sharedUserListProps}
+              />
+            )}
+          </div>
+        </div>
+
+        {modals}
+      </div>
+    );
+  }
+
   const sidebar = (
     <SidebarContent theme={theme} onBack={handleBack} />
   );
@@ -191,95 +370,14 @@ export function ManageEmployees({ theme, onBack }: ManageEmployeesProps): JSX.El
               <UsersTable
                 theme={theme}
                 users={users}
-                menuFor={menuFor}
-                onMenuToggle={(id) => setMenuFor((prev) => (prev === id ? null : id))}
-                onMenuClose={() => setMenuFor(null)}
-                onEdit={(u) => {
-                  setEditing(u);
-                  setMenuFor(null);
-                }}
-                onRegenerate={(u) => {
-                  setRegenerateTarget(u);
-                  setMenuFor(null);
-                }}
-                onDelete={(u) => {
-                  setDeleteTarget(u);
-                  setMenuFor(null);
-                }}
-                onGenerate={(u) => void handleGenerateCode(u)}
-                onShowCode={(u) => {
-                  if (u.lineLinkingCode && u.lineLinkingCodeGeneratedAt) {
-                    setCodeDisplay({
-                      userId: u.id,
-                      userName: u.name,
-                      code: u.lineLinkingCode,
-                      expiresAt: codeExpiry(u.lineLinkingCodeGeneratedAt),
-                    });
-                  }
-                }}
+                {...sharedUserListProps}
               />
             )}
           </div>
         </div>
       </div>
 
-      {createOpen && (
-        <UserFormModal
-          theme={theme}
-          mode="create"
-          onClose={() => setCreateOpen(false)}
-          onSubmit={(req) => void handleCreate(req)}
-        />
-      )}
-
-      {editing && (
-        <UserFormModal
-          theme={theme}
-          mode="edit"
-          initial={editing}
-          onClose={() => setEditing(null)}
-          onSubmit={(req) => void handleEdit(editing.id, req)}
-        />
-      )}
-
-      {codeDisplay && (
-        <CodeDisplayModal
-          theme={theme}
-          display={codeDisplay}
-          onClose={() => setCodeDisplay(null)}
-        />
-      )}
-
-      {regenerateTarget && (
-        <ConfirmModal
-          theme={theme}
-          title="สร้างรหัสใหม่?"
-          body={`การสร้างรหัสใหม่จะยกเลิกการเชื่อมต่อ LINE ปัจจุบันของ ${regenerateTarget.name} (ถ้ามี) และสร้างรหัส 6 หลักใหม่`}
-          confirmLabel="สร้างรหัสใหม่"
-          confirmTone="warn"
-          onCancel={() => setRegenerateTarget(null)}
-          onConfirm={() => {
-            const target = regenerateTarget;
-            setRegenerateTarget(null);
-            void handleGenerateCode(target);
-          }}
-        />
-      )}
-
-      {deleteTarget && (
-        <ConfirmModal
-          theme={theme}
-          title={`ลบ ${deleteTarget.name}?`}
-          body="พนักงานคนนี้จะถูกลบออกจากระบบ การกระทำนี้ไม่สามารถย้อนกลับได้"
-          confirmLabel="ลบพนักงาน"
-          confirmTone="danger"
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={() => {
-            const target = deleteTarget;
-            void handleDelete(target);
-          }}
-        />
-      )}
+      {modals}
     </DesktopShell>
   );
 }
@@ -458,6 +556,174 @@ function EmptyState({ theme }: { theme: Theme }): JSX.Element {
         ยังไม่มีพนักงาน — กดเพิ่มพนักงานเพื่อเริ่ม
       </div>
     </Card>
+  );
+}
+
+function MobileEmptyState({ theme }: { theme: Theme }): JSX.Element {
+  return (
+    <div
+      style={{
+        textAlign: 'center',
+        padding: '60px 24px',
+        fontFamily: FONT_UI,
+        fontSize: 14,
+        color: theme.inkSoft,
+      }}
+    >
+      ยังไม่มีพนักงาน — กดเพิ่มเพื่อเริ่ม
+    </div>
+  );
+}
+
+// ── Mobile employee list & card ──────────────────────────────────────
+
+interface MobileEmployeeListProps {
+  theme: Theme;
+  users: AdminUser[];
+  menuFor: string | null;
+  onMenuToggle: (id: string) => void;
+  onMenuClose: () => void;
+  onEdit: (u: AdminUser) => void;
+  onRegenerate: (u: AdminUser) => void;
+  onDelete: (u: AdminUser) => void;
+  onGenerate: (u: AdminUser) => void;
+  onShowCode: (u: AdminUser) => void;
+}
+
+function MobileEmployeeList({
+  theme,
+  users,
+  menuFor,
+  onMenuToggle,
+  onMenuClose,
+  onEdit,
+  onRegenerate,
+  onDelete,
+  onGenerate,
+  onShowCode,
+}: MobileEmployeeListProps): JSX.Element {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {users.map((u) => (
+        <EmployeeCard
+          key={u.id}
+          theme={theme}
+          user={u}
+          menuOpen={menuFor === u.id}
+          onMenuToggle={() => onMenuToggle(u.id)}
+          onMenuClose={onMenuClose}
+          onEdit={() => onEdit(u)}
+          onRegenerate={() => onRegenerate(u)}
+          onDelete={() => onDelete(u)}
+          onGenerate={() => onGenerate(u)}
+          onShowCode={() => onShowCode(u)}
+        />
+      ))}
+    </div>
+  );
+}
+
+interface EmployeeCardProps {
+  theme: Theme;
+  user: AdminUser;
+  menuOpen: boolean;
+  onMenuToggle: () => void;
+  onMenuClose: () => void;
+  onEdit: () => void;
+  onRegenerate: () => void;
+  onDelete: () => void;
+  onGenerate: () => void;
+  onShowCode: () => void;
+}
+
+function EmployeeCard({
+  theme,
+  user,
+  menuOpen,
+  onMenuToggle,
+  onMenuClose,
+  onEdit,
+  onRegenerate,
+  onDelete,
+  onGenerate,
+  onShowCode,
+}: EmployeeCardProps): JSX.Element {
+  const roleLabel = user.role === 'approver' ? 'ผู้อนุมัติ' : 'พนักงาน';
+
+  return (
+    <div
+      style={{
+        background: theme.surface,
+        borderRadius: 16,
+        border: `0.5px solid ${theme.hairline}`,
+        padding: '16px 16px 14px',
+        position: 'relative',
+      }}
+    >
+      {/* Header row: avatar + name/role + menu button */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <Avatar theme={theme} initials={user.initials} size={40} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: FONT_UI,
+              fontSize: 15,
+              fontWeight: 600,
+              color: theme.ink,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {user.name}
+          </div>
+          <div style={{ fontFamily: FONT_UI, fontSize: 12, color: theme.inkSoft, marginTop: 1 }}>
+            {roleLabel}
+          </div>
+        </div>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <IconBtn theme={theme} onClick={onMenuToggle}>
+            {Icon.more(theme.inkSoft)}
+          </IconBtn>
+          {menuOpen && (
+            <RowMenu
+              theme={theme}
+              onClose={onMenuClose}
+              onEdit={onEdit}
+              onRegenerate={onRegenerate}
+              onDelete={onDelete}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* LINE status row */}
+      <div
+        style={{
+          paddingTop: 10,
+          borderTop: `0.5px solid ${theme.hairline}`,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: FONT_UI,
+            fontSize: 10,
+            color: theme.inkSofter,
+            letterSpacing: 1.2,
+            textTransform: 'uppercase',
+            marginBottom: 6,
+          }}
+        >
+          LINE
+        </div>
+        <LineStatusCell
+          theme={theme}
+          user={user}
+          onGenerate={onGenerate}
+          onShowCode={onShowCode}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -851,11 +1117,12 @@ function Toast({ theme, message, onClose }: ToastProps): JSX.Element {
 interface ModalShellProps {
   theme: Theme;
   width?: number;
+  isMobile?: boolean;
   onClose: () => void;
   children: ReactNode;
 }
 
-function ModalShell({ theme, width = 480, onClose, children }: ModalShellProps): JSX.Element {
+function ModalShell({ theme, width = 480, isMobile = false, onClose, children }: ModalShellProps): JSX.Element {
   const overlayStyle: CSSProperties = {
     position: 'fixed',
     inset: 0,
@@ -863,22 +1130,46 @@ function ModalShell({ theme, width = 480, onClose, children }: ModalShellProps):
     backdropFilter: 'blur(6px)',
     zIndex: 60,
     display: 'flex',
-    alignItems: 'center',
+    alignItems: isMobile ? 'flex-end' : 'center',
     justifyContent: 'center',
+    overflowY: 'auto',
   };
+
+  const sheetStyle: CSSProperties = isMobile
+    ? {
+        width: '100%',
+        maxHeight: '92dvh',
+        background: theme.paper,
+        borderRadius: '20px 20px 0 0',
+        boxShadow: '0 -8px 40px rgba(0,0,0,0.3)',
+        padding: '20px 20px calc(20px + env(safe-area-inset-bottom))',
+        fontFamily: FONT_UI,
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+      } as CSSProperties
+    : {
+        width,
+        background: theme.paper,
+        borderRadius: 18,
+        boxShadow: '0 30px 80px rgba(0,0,0,0.4)',
+        padding: 28,
+        fontFamily: FONT_UI,
+      };
+
   return (
     <div onClick={onClose} style={overlayStyle}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width,
-          background: theme.paper,
-          borderRadius: 18,
-          boxShadow: '0 30px 80px rgba(0,0,0,0.4)',
-          padding: 28,
-          fontFamily: FONT_UI,
-        }}
-      >
+      <div onClick={(e) => e.stopPropagation()} style={sheetStyle}>
+        {isMobile && (
+          <div
+            style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              background: theme.hairlineStrong,
+              margin: '0 auto 18px',
+            }}
+          />
+        )}
         {children}
       </div>
     </div>
@@ -890,6 +1181,7 @@ function ModalShell({ theme, width = 480, onClose, children }: ModalShellProps):
 interface UserFormModalProps {
   theme: Theme;
   mode: 'create' | 'edit';
+  isMobile?: boolean;
   initial?: AdminUser;
   onClose: () => void;
   onSubmit: (req: CreateUserRequest) => void;
@@ -898,6 +1190,7 @@ interface UserFormModalProps {
 function UserFormModal({
   theme,
   mode,
+  isMobile = false,
   initial,
   onClose,
   onSubmit,
@@ -927,7 +1220,7 @@ function UserFormModal({
   };
 
   return (
-    <ModalShell theme={theme} onClose={onClose}>
+    <ModalShell theme={theme} isMobile={isMobile} onClose={onClose}>
       <div
         style={{
           fontFamily: FONT_DISPLAY,
@@ -1078,11 +1371,12 @@ function RoleToggle({ theme, label, active, onClick }: RoleToggleProps): JSX.Ele
 
 interface CodeDisplayModalProps {
   theme: Theme;
+  isMobile?: boolean;
   display: CodeDisplay;
   onClose: () => void;
 }
 
-function CodeDisplayModal({ theme, display, onClose }: CodeDisplayModalProps): JSX.Element {
+function CodeDisplayModal({ theme, isMobile = false, display, onClose }: CodeDisplayModalProps): JSX.Element {
   const [copied, setCopied] = useState(false);
 
   const copy = async (): Promise<void> => {
@@ -1098,7 +1392,7 @@ function CodeDisplayModal({ theme, display, onClose }: CodeDisplayModalProps): J
   const expired = isExpired(display.expiresAt);
 
   return (
-    <ModalShell theme={theme} onClose={onClose}>
+    <ModalShell theme={theme} isMobile={isMobile} onClose={onClose}>
       <div
         style={{
           fontFamily: FONT_UI,
@@ -1187,6 +1481,7 @@ function CodeDisplayModal({ theme, display, onClose }: CodeDisplayModalProps): J
 
 interface ConfirmModalProps {
   theme: Theme;
+  isMobile?: boolean;
   title: string;
   body: string;
   confirmLabel: string;
@@ -1197,6 +1492,7 @@ interface ConfirmModalProps {
 
 function ConfirmModal({
   theme,
+  isMobile = false,
   title,
   body,
   confirmLabel,
@@ -1205,7 +1501,7 @@ function ConfirmModal({
   onConfirm,
 }: ConfirmModalProps): JSX.Element {
   return (
-    <ModalShell theme={theme} width={420} onClose={onCancel}>
+    <ModalShell theme={theme} isMobile={isMobile} width={420} onClose={onCancel}>
       <div
         style={{
           fontFamily: FONT_DISPLAY,
