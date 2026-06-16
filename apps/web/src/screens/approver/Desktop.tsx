@@ -11,6 +11,7 @@ import { Icon } from '../../components/icons';
 import { ReceiptPhoto, ReceiptThumb } from '../../components/Receipts';
 
 const TABLE_GRID_COLUMNS = '1.2fr 1fr 1fr 100px';
+const DETAIL_MAX_WIDTH = 840;
 
 type FilterKey = Exclude<BundleStatus, 'draft'>;
 
@@ -138,19 +139,12 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
               onPhoto={(i) => setPhotoIdx(i)}
             />
           ) : (
-            <div
-              style={{
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: theme.inkSofter,
-                fontFamily: FONT_UI,
-                fontSize: 14,
-              }}
-            >
-              เลือกคำขอเพื่อดูรายละเอียด
-            </div>
+            <DetailEmptyState
+              theme={theme}
+              icon={Icon.bundle}
+              heading="เลือกคำขอเพื่อดูรายละเอียด"
+              subtext="เลือกรายการจากด้านซ้ายเพื่อดูใบเสร็จ ยอดรวม และดำเนินการอนุมัติ"
+            />
           )}
 
           {photoIdx !== null && items[photoIdx] && (
@@ -383,14 +377,18 @@ function BundleListColumn({
         {list.length === 0 && (
           <div
             style={{
-              padding: '40px 20px',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
               textAlign: 'center',
-              fontFamily: FONT_UI,
-              fontSize: 13,
-              color: theme.inkSoft,
+              padding: '0 28px',
+              gap: 8,
             }}
           >
-            ไม่มีรายการ
+            <div style={{ opacity: 0.5 }}>{Icon.receipt(theme.inkSofter)}</div>
+            <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.inkSoft }}>ไม่มีรายการในสถานะนี้</div>
           </div>
         )}
         {list.map((b) => {
@@ -496,7 +494,7 @@ function DesktopDetail({
     .join('');
 
   return (
-    <div style={{ padding: '32px 40px 100px', maxWidth: 820 }}>
+    <div style={{ maxWidth: DETAIL_MAX_WIDTH, margin: '0 auto', padding: '40px 48px 100px' }}>
       {/* Header */}
       <div
         style={{
@@ -847,6 +845,51 @@ function SectionLabel({ theme, children }: SectionLabelProps): JSX.Element {
   );
 }
 
+interface DetailEmptyStateProps {
+  theme: Theme;
+  icon: (color?: string) => ReactNode;
+  heading: string;
+  subtext: string;
+}
+
+function DetailEmptyState({ theme, icon, heading, subtext }: DetailEmptyStateProps): JSX.Element {
+  return (
+    <div
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        padding: '0 40px',
+        gap: 14,
+      }}
+    >
+      <div
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: 16,
+          background: theme.surface2,
+          border: `0.5px solid ${theme.hairline}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {icon(theme.inkSofter)}
+      </div>
+      <div style={{ fontFamily: FONT_DISPLAY, fontSize: 19, fontWeight: 400, letterSpacing: -0.3, color: theme.ink }}>
+        {heading}
+      </div>
+      <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.inkSoft, lineHeight: 1.5, maxWidth: 300 }}>
+        {subtext}
+      </div>
+    </div>
+  );
+}
+
 interface ActionBarProps {
   theme: Theme;
   children: ReactNode;
@@ -859,10 +902,10 @@ function ActionBar({ theme, children }: ActionBarProps): JSX.Element {
     background: `linear-gradient(180deg, transparent, ${theme.paper} 25%)`,
     paddingTop: 24,
     paddingBottom: 12,
-    marginLeft: -40,
-    marginRight: -40,
-    paddingLeft: 40,
-    paddingRight: 40,
+    marginLeft: -48,
+    marginRight: -48,
+    paddingLeft: 48,
+    paddingRight: 48,
     borderTop: `0.5px solid ${theme.hairline}`,
     display: 'flex',
     alignItems: 'center',

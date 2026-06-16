@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-06-16
+
+### Changed
+- **Desktop layout polish ("centered editorial").** Detail content is now capped at 840px and centered
+  (`margin: 0 auto`) within wide panes instead of hugging the left edge; the employee drafts gallery caps
+  at 1040px. Empty states became a centered icon-chip + display heading + subtext (replacing lone floating
+  labels, the bare "ไม่มีรายการ", and the 📸 emoji), applied consistently across the approver and employee
+  desktop views. No functional/route/data changes.
+
 ## [0.2.1] - 2026-06-16
 
 ### Fixed

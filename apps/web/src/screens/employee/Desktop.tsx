@@ -16,6 +16,7 @@ const NEW_RECEIPT_ACCENT = '#7E5E3A';
 const NEW_RECEIPT_DATE = '2026-04-30';
 const NEW_RECEIPT_MERCHANT_FALLBACK = 'ใบเสร็จใหม่';
 const DEFAULT_BUNDLE_NAME = 'ค่าใช้จ่ายสัปดาห์นี้';
+const DETAIL_MAX_WIDTH = 840;
 
 // Pulled from `@reimbursement/shared` to stay in sync with the rest of the app.
 import { RECEIPT_CATEGORIES } from '../../lib/types';
@@ -366,7 +367,8 @@ function DraftsPane({
   return (
     <div style={{ display: 'flex', height: '100%', background: theme.paper }}>
       {/* MIDDLE — receipts gallery */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '32px 40px 40px' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '40px 40px 56px' }}>
+        <div style={{ maxWidth: 1040, margin: '0 auto' }}>
         {owed > 0 && <OwedBanner theme={theme} owed={owed} outstandingCount={outstandingCount} />}
 
         {justSubmitted && <SubmittedToast theme={theme} />}
@@ -448,6 +450,7 @@ function DraftsPane({
             ))}
           </div>
         )}
+        </div>
       </div>
 
       {/* RIGHT — selection / bundle composer */}
@@ -593,17 +596,36 @@ function EmptyDrafts({ theme }: EmptyDraftsProps) {
   return (
     <div
       style={{
-        padding: '60px 20px',
+        padding: '56px 24px',
         textAlign: 'center',
-        fontFamily: FONT_UI,
-        fontSize: 14,
-        color: theme.inkSoft,
         border: `1px dashed ${theme.hairlineStrong}`,
         borderRadius: 16,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 12,
       }}
     >
-      <div style={{ fontSize: 36, marginBottom: 10 }}>📸</div>
-      ยังไม่มีใบเสร็จที่รอส่ง
+      <div
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: 16,
+          background: theme.surface2,
+          border: `0.5px solid ${theme.hairline}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {Icon.camera(theme.inkSofter)}
+      </div>
+      <div style={{ fontFamily: FONT_DISPLAY, fontSize: 18, fontWeight: 400, letterSpacing: -0.3, color: theme.ink }}>
+        ยังไม่มีใบเสร็จที่รอส่ง
+      </div>
+      <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.inkSoft, lineHeight: 1.5, maxWidth: 280 }}>
+        กดปุ่มถ่ายใบเสร็จเพื่อเริ่มเพิ่มค่าใช้จ่าย
+      </div>
     </div>
   );
 }
@@ -744,6 +766,7 @@ function BundleComposer({
     <div
       style={{
         width: 340,
+        flexShrink: 0,
         borderLeft: `0.5px solid ${theme.hairline}`,
         display: 'flex',
         flexDirection: 'column',
@@ -1009,7 +1032,9 @@ function BundleDetailPane({ theme, bundle, onBack }: BundleDetailPaneProps) {
   return (
     <div
       style={{
-        padding: '32px 40px 40px',
+        maxWidth: DETAIL_MAX_WIDTH,
+        margin: '0 auto',
+        padding: '40px 48px 56px',
         overflow: 'auto',
         height: '100%',
         background: theme.paper,
