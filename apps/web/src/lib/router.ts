@@ -1,6 +1,6 @@
 export type Route =
   | { name: 'home' }
-  | { name: 'upload' }
+  | { name: 'upload'; editId?: string }
   | { name: 'record'; id: string }
   | { name: 'bundle-new'; id?: string }
   | { name: 'bundle-submitted'; id: string }

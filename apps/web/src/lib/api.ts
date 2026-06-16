@@ -240,6 +240,10 @@ export const api = {
       request<Receipt[]>(opts?.mine ? '/api/receipts?mine=1' : '/api/receipts'),
     create: (form: FormData): Promise<Receipt> =>
       request<Receipt>('/api/receipts', { method: 'POST', body: form }),
+    update: (id: string, form: FormData): Promise<Receipt> =>
+      request<Receipt>(`/api/receipts/${encodeURIComponent(id)}`, { method: 'PATCH', body: form }),
+    delete: (id: string): Promise<void> =>
+      request<void>(`/api/receipts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   },
 
   bundles: {

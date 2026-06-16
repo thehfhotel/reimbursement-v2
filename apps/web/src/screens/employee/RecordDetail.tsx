@@ -1,23 +1,45 @@
+import { useState } from 'react';
 import type { AppState, Theme } from '../../lib/types';
 import type { Nav } from '../../lib/router';
 import { fmtN, formatThaiDate } from '../../lib/format';
 import { FONT_DISPLAY, FONT_UI } from '../../lib/theme';
 import { AppBar } from '../../components/AppBar';
-import { Card, DetailRow, IconBtn, PrimaryButton, SectionHeader } from '../../components/primitives';
+import { Card, DetailRow, GhostButton, IconBtn, PrimaryButton, SectionHeader } from '../../components/primitives';
 import { Icon } from '../../components/icons';
 import { ReceiptPhoto } from '../../components/Receipts';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { api } from '../../lib/api';
 
 interface RecordDetailProps {
   theme: Theme;
   state: AppState;
+  setState: (updater: (s: AppState) => AppState) => void;
   nav: Nav;
   recordId: string;
 }
 
-export function RecordDetail({ theme, state, nav, recordId }: RecordDetailProps) {
+export function RecordDetail({ theme, state, setState, nav, recordId }: RecordDetailProps) {
   const r = state.receipts.find((x) => x.id === recordId);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   if (!r) return null;
+  const isDraft = r.bundleId === null;
   const [whole, frac] = fmtN(r.amount).split('.');
+
+  const handleDelete = async (): Promise<void> => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.receipts.delete(r.id);
+      setState((s) => ({ ...s, receipts: s.receipts.filter((x) => x.id !== r.id) }));
+      nav({ name: 'home' });
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+      setDeleting(false);
+    }
+  };
 
   return (
     <div style={{ paddingBottom: 100 }}>
@@ -104,11 +126,63 @@ export function RecordDetail({ theme, state, nav, recordId }: RecordDetailProps)
         )}
       </div>
 
-      <div style={{ padding: '24px 20px' }}>
+      <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <PrimaryButton theme={theme} onClick={() => nav({ name: 'bundle-new', id: r.id })}>
           เพิ่มในชุดเบิก
         </PrimaryButton>
+
+        {isDraft && (
+          <>
+            <GhostButton theme={theme} full onClick={() => nav({ name: 'upload', editId: r.id })}>
+              แก้ไข
+            </GhostButton>
+            <button
+              onClick={() => { setDeleteError(null); setShowDeleteDialog(true); }}
+              style={{
+                width: '100%',
+                padding: '14px 20px',
+                borderRadius: 14,
+                border: `1px solid ${theme.danger}`,
+                background: 'transparent',
+                color: theme.danger,
+                fontFamily: FONT_UI,
+                fontSize: 15,
+                fontWeight: 500,
+                cursor: 'pointer',
+                letterSpacing: 0.1,
+              }}
+            >
+              ลบฉบับร่าง
+            </button>
+            {deleteError && (
+              <div
+                style={{
+                  fontFamily: FONT_UI,
+                  fontSize: 13,
+                  color: theme.danger,
+                  textAlign: 'center',
+                  marginTop: 4,
+                }}
+              >
+                {deleteError}
+              </div>
+            )}
+          </>
+        )}
       </div>
+
+      {showDeleteDialog && (
+        <ConfirmDialog
+          theme={theme}
+          title="ลบฉบับร่างนี้?"
+          message="ใบเสร็จนี้จะถูกลบถาวรและไม่สามารถกู้คืนได้"
+          confirmLabel="ลบ"
+          danger
+          loading={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => { if (!deleting) setShowDeleteDialog(false); }}
+        />
+      )}
     </div>
   );
 }

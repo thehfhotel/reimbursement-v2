@@ -7,6 +7,7 @@ import { api, receiptFormFromFields } from '../../lib/api';
 import { dataUrlToFile } from '../../lib/photoUpload';
 import { DesktopShell, SidebarSection } from '../../components/DesktopShell';
 import { Card, GhostButton, Money, PrimaryButton, StatusPill } from '../../components/primitives';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Icon } from '../../components/icons';
 import { ReceiptPhoto, ReceiptThumb } from '../../components/Receipts';
 import { EmptyState } from '../../components/EmptyState';
@@ -59,6 +60,9 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState<boolean>(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteInProgress, setDeleteInProgress] = useState<boolean>(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const { toast: submitToast, showToast: showSubmitToast } = useToast();
   const { toast: createToast, showToast: showCreateToast } = useToast();
 
@@ -155,6 +159,29 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
 
   const openCreateModal = (): void => setCreateOpen(true);
   const closeCreateModal = (): void => setCreateOpen(false);
+
+  const openDeleteDialog = (id: string): void => {
+    setDeleteError(null);
+    setDeleteTargetId(id);
+  };
+  const closeDeleteDialog = (): void => {
+    if (!deleteInProgress) setDeleteTargetId(null);
+  };
+  const confirmDeleteReceipt = async (): Promise<void> => {
+    if (!deleteTargetId) return;
+    setDeleteInProgress(true);
+    setDeleteError(null);
+    try {
+      await api.receipts.delete(deleteTargetId);
+      setState((s) => ({ ...s, receipts: s.receipts.filter((r) => r.id !== deleteTargetId) }));
+      setSelected((prev) => { const next = new Set(prev); next.delete(deleteTargetId); return next; });
+      setDeleteTargetId(null);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+    } finally {
+      setDeleteInProgress(false);
+    }
+  };
 
   const selectedBundle = bundles.find((b) => b.id === selectedBundleId) ?? null;
 
@@ -271,6 +298,7 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
         onToggleReceipt={toggleReceipt}
         onSubmitBundle={submitBundle}
         onCameraClick={openCreateModal}
+        onDeleteReceipt={openDeleteDialog}
       />
     );
 
@@ -309,6 +337,18 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
           theme={theme}
           onClose={closeCreateModal}
           onSave={handleCreateReceipt}
+        />
+      )}
+      {deleteTargetId !== null && (
+        <ConfirmDialog
+          theme={theme}
+          title="ลบฉบับร่างนี้?"
+          message={deleteError ?? 'ใบเสร็จนี้จะถูกลบถาวรและไม่สามารถกู้คืนได้'}
+          confirmLabel="ลบ"
+          danger
+          loading={deleteInProgress}
+          onConfirm={confirmDeleteReceipt}
+          onCancel={closeDeleteDialog}
         />
       )}
     </DesktopShell>
@@ -407,6 +447,7 @@ interface DraftsPaneProps {
   onToggleReceipt: (id: string) => void;
   onSubmitBundle: () => void;
   onCameraClick: () => void;
+  onDeleteReceipt: (id: string) => void;
 }
 
 function DraftsPane({
@@ -425,6 +466,7 @@ function DraftsPane({
   onToggleReceipt,
   onSubmitBundle,
   onCameraClick,
+  onDeleteReceipt,
 }: DraftsPaneProps) {
   const lightboxReceipt = photoIdx !== null ? looseReceipts[photoIdx] : null;
 
@@ -515,6 +557,7 @@ function DraftsPane({
                 isSelected={selected.has(receipt.id)}
                 onToggle={() => onToggleReceipt(receipt.id)}
                 onOpenPhoto={() => onPhotoIdxChange(idx)}
+                onDelete={() => onDeleteReceipt(receipt.id)}
               />
             ))}
           </div>
@@ -623,12 +666,17 @@ interface ReceiptCardProps {
   isSelected: boolean;
   onToggle: () => void;
   onOpenPhoto: () => void;
+  onDelete: () => void;
 }
 
-function ReceiptCard({ theme, receipt, isSelected, onToggle, onOpenPhoto }: ReceiptCardProps) {
+function ReceiptCard({ theme, receipt, isSelected, onToggle, onOpenPhoto, onDelete }: ReceiptCardProps) {
+  const [hovered, setHovered] = useState(false);
+
   return (
     <div
       onClick={onToggle}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         position: 'relative',
         padding: 14,
@@ -657,6 +705,32 @@ function ReceiptCard({ theme, receipt, isSelected, onToggle, onOpenPhoto }: Rece
       >
         {isSelected && Icon.check('#fff')}
       </div>
+      {hovered && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          title="ลบฉบับร่าง"
+          style={{
+            position: 'absolute',
+            top: 10,
+            left: 10,
+            width: 26,
+            height: 26,
+            borderRadius: 13,
+            background: theme.danger,
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 2,
+            padding: 0,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+            <path d="M5 6h10M8 6V4h4v2M9 9v6M11 9v6M6 6l1 10h6l1-10" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
       <div
         onClick={(e) => {
           e.stopPropagation();

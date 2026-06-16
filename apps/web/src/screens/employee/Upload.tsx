@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AppState, Property, Theme } from '../../lib/types';
 import type { Nav } from '../../lib/router';
 import { RECEIPT_CATEGORIES } from '../../lib/types';
@@ -16,6 +16,7 @@ interface UploadProps {
   state: AppState;
   nav: Nav;
   setState: (updater: (s: AppState) => AppState) => void;
+  editId?: string;
 }
 
 const CATEGORIES = RECEIPT_CATEGORIES;
@@ -28,21 +29,43 @@ const PALETTE = [
   ['#E6F4EA', '#0A6E40'],
 ] as const;
 
-export function Upload({ theme, nav, setState }: UploadProps) {
+export function Upload({ theme, nav, state, setState, editId }: UploadProps) {
+  const existing = editId ? (state.receipts.find((r) => r.id === editId) ?? null) : null;
+
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [amount, setAmount] = useState('');
-  const [merchant, setMerchant] = useState('');
-  const [category, setCategory] = useState<string>(CATEGORIES[0]);
-  const [property, setProperty] = useState<Property>('hf-hotel');
-  const [quantity, setQuantity] = useState('');
-  const [note, setNote] = useState('');
-  const [date, setDate] = useState<string>(todayIso());
+  const [photoPreview, setPhotoPreview] = useState<string | null>(
+    existing?.photoPath ?? null,
+  );
+  const [amount, setAmount] = useState(existing ? String(existing.amount) : '');
+  const [merchant, setMerchant] = useState(existing?.merchant ?? '');
+  const [category, setCategory] = useState<string>(existing?.category ?? CATEGORIES[0]);
+  const [property, setProperty] = useState<Property>(existing?.property ?? 'hf-hotel');
+  const [quantity, setQuantity] = useState(existing?.quantity != null ? String(existing.quantity) : '');
+  const [note, setNote] = useState(existing?.note ?? '');
+  const [date, setDate] = useState<string>(existing?.date ?? todayIso());
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const today = todayIso();
+
+  // If the editId changes (e.g. navigation), re-sync state.
+  useEffect(() => {
+    if (!editId) return;
+    const r = state.receipts.find((rec) => rec.id === editId);
+    if (!r) return;
+    setAmount(String(r.amount));
+    setMerchant(r.merchant);
+    setCategory(r.category);
+    setProperty(r.property);
+    setQuantity(r.quantity != null ? String(r.quantity) : '');
+    setNote(r.note ?? '');
+    setDate(r.date);
+    setPhotoFile(null);
+    setPhotoPreview(r.photoPath ?? null);
+  // We only want to sync when editId changes, not on every state update.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
 
   const onFile = (file: File) => {
     setPhotoFile(file);
@@ -51,10 +74,52 @@ export function Upload({ theme, nav, setState }: UploadProps) {
     reader.readAsDataURL(file);
   };
 
-  const canSave = !!photoFile && parseFloat(amount) > 0 && !submitting;
+  // In edit mode: a photo is not required if the existing receipt already has one.
+  const hasPhoto = !!photoFile || (editId != null && existing?.photoPath != null);
+  const canSave = hasPhoto && parseFloat(amount) > 0 && !submitting;
 
   const handleSave = async () => {
-    if (!canSave || !photoFile) return;
+    if (!canSave) return;
+
+    if (editId) {
+      // Edit path — only include the photo field when the user picked a new file.
+      const idx = Math.floor(Math.random() * PALETTE.length);
+      const palette = PALETTE[idx];
+      const form = receiptFormFromFields(
+        {
+          merchant: merchant || 'ใบเสร็จใหม่',
+          category,
+          property,
+          quantity: quantity ? parseInt(quantity, 10) : null,
+          amount: parseFloat(amount),
+          date,
+          note,
+          color: existing?.color ?? palette[0],
+          accent: existing?.accent ?? palette[1],
+          items: existing?.items ?? [],
+          tax: existing?.tax ?? '0',
+        },
+        photoFile ?? undefined,
+      );
+      setSubmitting(true);
+      setSaveError(null);
+      try {
+        const updated = await api.receipts.update(editId, form);
+        setState((s) => ({
+          ...s,
+          receipts: s.receipts.map((r) => (r.id === editId ? updated : r)),
+        }));
+        nav({ name: 'home' });
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // Create path (original logic)
+    if (!photoFile) return;
     const idx = Math.floor(Math.random() * PALETTE.length);
     const palette = PALETTE[idx];
     const form = receiptFormFromFields(
@@ -95,7 +160,7 @@ export function Upload({ theme, nav, setState }: UploadProps) {
             {Icon.back(theme.ink)}
           </IconBtn>
         }
-        title="ใบเสร็จใหม่"
+        title={editId ? 'แก้ไขใบเสร็จ' : 'ใบเสร็จใหม่'}
       />
 
       {/* Photo zone — file upload (real, not mock) */}
