@@ -9,13 +9,23 @@ import { DesktopShell, SidebarSection } from '../../components/DesktopShell';
 import { Card, GhostButton, Money, PrimaryButton, StatusPill } from '../../components/primitives';
 import { Icon } from '../../components/icons';
 import { ReceiptPhoto, ReceiptThumb } from '../../components/Receipts';
+import { EmptyState } from '../../components/EmptyState';
+import { Toast, useToast } from '../../components/Toast';
 
 // ── Constants for new (uploaded) receipts ────────────────────────────
 const NEW_RECEIPT_COLOR = '#F5EBD9';
 const NEW_RECEIPT_ACCENT = '#7E5E3A';
 const NEW_RECEIPT_MERCHANT_FALLBACK = 'ใบเสร็จใหม่';
-const DEFAULT_BUNDLE_NAME = 'ค่าใช้จ่ายสัปดาห์นี้';
 const DETAIL_MAX_WIDTH = 840;
+
+function todayThaiDateLabel(): string {
+  const today = new Date().toISOString().slice(0, 10);
+  return formatThaiDate(today);
+}
+
+function autoNamePlaceholder(): string {
+  return `คำขอ ${todayThaiDateLabel()}`;
+}
 
 function sanitizeAmountInput(raw: string): string {
   let v = raw.replace(/[^0-9.]/g, '');
@@ -43,13 +53,14 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
   const [view, setView] = useState<View>('drafts');
   const [selectedBundleId, setSelectedBundleId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bundleName, setBundleName] = useState<string>(DEFAULT_BUNDLE_NAME);
+  const [bundleName, setBundleName] = useState<string>('');
   const [photoIdx, setPhotoIdx] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [justSubmitted, setJustSubmitted] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState<boolean>(false);
+  const { toast: submitToast, showToast: showSubmitToast } = useToast();
+  const { toast: createToast, showToast: showCreateToast } = useToast();
 
   const { receipts, bundles } = state;
   const looseReceipts = receipts.filter((r) => r.bundleId === null);
@@ -91,8 +102,9 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const effectiveName = bundleName.trim() || autoNamePlaceholder();
       const created = await api.bundles.create({
-        name: bundleName,
+        name: effectiveName,
         receiptIds: [...selected],
       });
       setState((s) => ({
@@ -103,9 +115,8 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
         ),
       }));
       setSelected(new Set());
-      setBundleName(DEFAULT_BUNDLE_NAME);
-      setJustSubmitted(created.id);
-      window.setTimeout(() => setJustSubmitted(null), 4000);
+      setBundleName('');
+      showSubmitToast('ส่งขออนุมัติเรียบร้อย');
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     } finally {
@@ -136,6 +147,7 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
       const created = await api.receipts.create(form);
       setState((s) => ({ ...s, receipts: [created, ...s.receipts] }));
       setCreateOpen(false);
+      showCreateToast('บันทึกใบเสร็จแล้ว');
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     }
@@ -253,7 +265,6 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
         onBundleNameChange={setBundleName}
         owed={owed}
         outstandingCount={totalsByStatus.pending + totalsByStatus.approved}
-        justSubmitted={justSubmitted}
         submitting={submitting}
         photoIdx={photoIdx}
         onPhotoIdxChange={setPhotoIdx}
@@ -291,6 +302,8 @@ export function DesktopEmployee({ theme, state, setState, currentUser, onBackToI
           {submitError || createError}
         </div>
       )}
+      <Toast toast={submitToast} theme={theme} />
+      <Toast toast={createToast} theme={theme} />
       {createOpen && (
         <CreateReceiptModal
           theme={theme}
@@ -388,7 +401,6 @@ interface DraftsPaneProps {
   onBundleNameChange: (next: string) => void;
   owed: number;
   outstandingCount: number;
-  justSubmitted: string | null;
   submitting: boolean;
   photoIdx: number | null;
   onPhotoIdxChange: (next: number | null) => void;
@@ -407,7 +419,6 @@ function DraftsPane({
   onBundleNameChange,
   owed,
   outstandingCount,
-  justSubmitted,
   submitting,
   photoIdx,
   onPhotoIdxChange,
@@ -423,8 +434,6 @@ function DraftsPane({
       <div style={{ flex: 1, overflow: 'auto', padding: '40px 40px 56px' }}>
         <div style={{ maxWidth: 1040, margin: '0 auto' }}>
         {owed > 0 && <OwedBanner theme={theme} owed={owed} outstandingCount={outstandingCount} />}
-
-        {justSubmitted && <SubmittedToast theme={theme} />}
 
         <div
           style={{
@@ -482,7 +491,14 @@ function DraftsPane({
         </div>
 
         {looseReceipts.length === 0 ? (
-          <EmptyDrafts theme={theme} />
+          <div style={{ minHeight: 320 }}>
+            <EmptyState
+              theme={theme}
+              icon={Icon.camera}
+              title="ยังไม่มีใบเสร็จที่รอส่ง"
+              subtext="กดปุ่มถ่ายใบเสร็จเพื่อเริ่มเพิ่มค่าใช้จ่าย"
+            />
+          </div>
         ) : (
           <div
             style={{
@@ -595,89 +611,6 @@ function OwedBanner({ theme, owed, outstandingCount }: OwedBannerProps) {
       </div>
       <div style={{ fontFamily: FONT_UI, fontSize: 12, color: theme.inkSoft }}>
         {outstandingCount} คำขอที่ยังไม่ได้รับ
-      </div>
-    </div>
-  );
-}
-
-// ── Submitted toast ───────────────────────────────────────────────────
-interface SubmittedToastProps {
-  theme: Theme;
-}
-
-function SubmittedToast({ theme }: SubmittedToastProps) {
-  return (
-    <div
-      style={{
-        padding: '12px 16px',
-        borderRadius: 10,
-        marginBottom: 20,
-        background: '#E8F4EC',
-        border: `0.5px solid ${theme.success}`,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        fontFamily: FONT_UI,
-        fontSize: 13,
-        color: '#0F4A2E',
-      }}
-    >
-      <div
-        style={{
-          width: 18,
-          height: 18,
-          borderRadius: 9,
-          background: theme.success,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {Icon.check('#fff')}
-      </div>
-      ส่งคำขออนุมัติเรียบร้อย — จะแจ้งเตือนเมื่อได้รับการอนุมัติ
-    </div>
-  );
-}
-
-// ── Empty drafts state ────────────────────────────────────────────────
-interface EmptyDraftsProps {
-  theme: Theme;
-}
-
-function EmptyDrafts({ theme }: EmptyDraftsProps) {
-  return (
-    <div
-      style={{
-        padding: '56px 24px',
-        textAlign: 'center',
-        border: `1px dashed ${theme.hairlineStrong}`,
-        borderRadius: 16,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 12,
-      }}
-    >
-      <div
-        style={{
-          width: 56,
-          height: 56,
-          borderRadius: 16,
-          background: theme.surface2,
-          border: `0.5px solid ${theme.hairline}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {Icon.camera(theme.inkSofter)}
-      </div>
-      <div style={{ fontFamily: FONT_DISPLAY, fontSize: 18, fontWeight: 400, letterSpacing: -0.3, color: theme.ink }}>
-        ยังไม่มีใบเสร็จที่รอส่ง
-      </div>
-      <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.inkSoft, lineHeight: 1.5, maxWidth: 280 }}>
-        กดปุ่มถ่ายใบเสร็จเพื่อเริ่มเพิ่มค่าใช้จ่าย
       </div>
     </div>
   );
@@ -882,6 +815,7 @@ function BundleComposer({
               <input
                 value={bundleName}
                 onChange={(e) => onBundleNameChange(e.target.value)}
+                placeholder={autoNamePlaceholder()}
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -1009,7 +943,7 @@ function BundleComposer({
               </div>
             </div>
             <PrimaryButton theme={theme} disabled={submitting} onClick={onSubmit}>
-              {submitting ? 'กำลังส่ง...' : `ส่งอนุมัติ · ${selectedCount} ใบ`}
+              {submitting ? 'กำลังส่ง...' : `ส่งขออนุมัติ · ${selectedCount} ใบ`}
             </PrimaryButton>
           </div>
         </>

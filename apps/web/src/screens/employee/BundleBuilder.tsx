@@ -2,12 +2,19 @@ import { useState } from 'react';
 import type { AppState, Theme } from '../../lib/types';
 import type { Nav } from '../../lib/router';
 import { FONT_UI } from '../../lib/theme';
+import { formatThaiDate } from '../../lib/format';
 import { api } from '../../lib/api';
 import { AppBar } from '../../components/AppBar';
 import { IconBtn, Money, PrimaryButton, SectionHeader } from '../../components/primitives';
 import { Icon } from '../../components/icons';
 import { FormRow } from '../../components/FormRow';
 import { SelectableReceiptRow } from './_shared';
+import { Toast, useToast } from '../../components/Toast';
+
+function todayAutoName(): string {
+  const today = new Date().toISOString().slice(0, 10);
+  return `คำขอ ${formatThaiDate(today)}`;
+}
 
 interface BundleBuilderProps {
   theme: Theme;
@@ -18,10 +25,11 @@ interface BundleBuilderProps {
 }
 
 export function BundleBuilder({ theme, state, nav, setState, preselectId }: BundleBuilderProps) {
-  const [name, setName] = useState('ค่าใช้จ่ายสัปดาห์นี้');
+  const [name, setName] = useState('');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
 
   const loose = state.receipts.filter((r) => r.bundleId === null);
   const [selected, setSelected] = useState<Set<string>>(() =>
@@ -42,8 +50,9 @@ export function BundleBuilder({ theme, state, nav, setState, preselectId }: Bund
     setError(null);
     setSubmitting(true);
     try {
+      const effectiveName = name.trim() || todayAutoName();
       const created = await api.bundles.create({
-        name,
+        name: effectiveName,
         receiptIds: Array.from(selected),
         note,
       });
@@ -54,6 +63,7 @@ export function BundleBuilder({ theme, state, nav, setState, preselectId }: Bund
           created.receipts.some((cr) => cr.id === r.id) ? { ...r, bundleId: created.id } : r,
         ),
       }));
+      showToast('ส่งขออนุมัติเรียบร้อย');
       nav({ name: 'bundle-submitted', id: created.id });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
@@ -77,7 +87,7 @@ export function BundleBuilder({ theme, state, nav, setState, preselectId }: Bund
       />
 
       <div style={{ padding: '20px 20px 0' }}>
-        <FormRow theme={theme} label="ชื่อ" value={name} onChange={setName} />
+        <FormRow theme={theme} label="ชื่อ" value={name} onChange={setName} placeholder={todayAutoName()} />
         <FormRow
           theme={theme}
           label="หมายเหตุถึงผู้อนุมัติ"
@@ -159,9 +169,10 @@ export function BundleBuilder({ theme, state, nav, setState, preselectId }: Bund
           </div>
         )}
         <PrimaryButton theme={theme} disabled={selected.size === 0 || submitting} onClick={submit}>
-          {submitting ? 'กำลังส่ง...' : 'ส่งเพื่อตรวจสอบ'}
+          {submitting ? 'กำลังส่ง...' : 'ส่งขออนุมัติ'}
         </PrimaryButton>
       </div>
+      <Toast toast={toast} theme={theme} />
     </div>
   );
 }

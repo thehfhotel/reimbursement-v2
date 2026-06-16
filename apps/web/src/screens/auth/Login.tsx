@@ -4,6 +4,10 @@ import { FONT_DISPLAY, FONT_UI, getTheme } from '../../lib/theme';
 const LINE_BRAND_GREEN = '#06C755';
 const LINE_LOGIN_REDIRECT = '/api/auth/login/line?redirect=' + encodeURIComponent('/');
 
+/** Contact point shown when the user has no account or needs help.
+ *  Change to a LINE deep-link, mailto:, or tel: as appropriate. */
+const ADMIN_CONTACT = 'mailto:admin@example.com';
+
 interface LoginProps {
   /** Optional theme — Login is shown pre-auth, so a default is provided. */
   theme?: Theme;
@@ -75,17 +79,22 @@ export function Login({ theme = getTheme(false, '#262626') }: LoginProps) {
 
       <div style={{ padding: '0 20px 30px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <LineLoginButton onClick={handleLineLogin} />
-        <div
+        <a
+          href={ADMIN_CONTACT}
           style={{
             fontFamily: FONT_UI,
             fontSize: 12,
             color: theme.inkSoft,
             textAlign: 'center',
             lineHeight: 1.5,
+            textDecoration: 'underline',
+            textDecorationColor: theme.inkSofter,
+            textUnderlineOffset: 2,
+            cursor: 'pointer',
           }}
         >
           ติดต่อผู้ดูแลระบบหากยังไม่มีบัญชี
-        </div>
+        </a>
       </div>
     </div>
   );

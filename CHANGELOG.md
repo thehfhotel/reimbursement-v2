@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-06-17
+
+### Added
+- Shared `EmptyState` + `Toast` components; success toasts after creating a receipt, submitting a bundle,
+  approving, and paying.
+
+### Changed
+- Auth screens (login / account-linking) are centered on desktop instead of full-bleed; linking now shows a
+  success state, clears the code on error, and offers an actionable admin-contact link for "no account / expired code".
+- Unified the app's empty states to one `EmptyState` vocabulary.
+- Copy: submit verb unified to "ส่งขออนุมัติ"; the bundle name now defaults to an auto-generated "คำขอ <date>"
+  placeholder instead of a fixed string.
+
 ## [0.5.0] - 2026-06-17
 
 ### Added

@@ -206,14 +206,54 @@ export function App() {
   };
 
   // ── Public auth screens — no IOSDevice frame, no tweaks panel ────
-  if (route.name === 'login') {
-    return <Login theme={theme} />;
-  }
-  if (route.name === 'auth-callback') {
-    return <Callback nav={nav} theme={theme} />;
-  }
-  if (route.name === 'link-account') {
-    return <LinkAccount nav={nav} theme={theme} />;
+  if (route.name === 'login' || route.name === 'auth-callback' || route.name === 'link-account') {
+    const inner =
+      route.name === 'login' ? (
+        <Login theme={theme} />
+      ) : route.name === 'auth-callback' ? (
+        <Callback nav={nav} theme={theme} />
+      ) : (
+        <LinkAccount nav={nav} theme={theme} />
+      );
+
+    // On desktop: center a ~420px column on the paper background.
+    if (viewportPlatform === 'desktop') {
+      return (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: theme.paper,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              width: 420,
+              maxHeight: '90vh',
+              background: theme.surface,
+              borderRadius: 24,
+              border: `0.5px solid ${theme.hairline}`,
+              boxShadow: '0 24px 64px rgba(0,0,0,0.12)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 540,
+            }}
+          >
+            {inner}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: theme.paper, overflow: 'auto' }}>
+        {inner}
+      </div>
+    );
   }
 
   if (route.name === 'admin-employees') {

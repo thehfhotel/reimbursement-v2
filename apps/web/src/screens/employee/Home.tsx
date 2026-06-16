@@ -8,6 +8,7 @@ import { Icon } from '../../components/icons';
 import { FONT_UI as FONT } from '../../lib/theme';
 import { ReceiptPhoto } from '../../components/Receipts';
 import { BundleRow } from './_shared';
+import { EmptyState } from '../../components/EmptyState';
 
 interface HomeProps {
   theme: Theme;
@@ -181,13 +182,13 @@ export function Home({ theme, state, nav, currentUser, isApprover }: HomeProps) 
         />
 
         {loose.length === 0 && (
-          <Card theme={theme} padding={28} style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 20, color: theme.ink, marginBottom: 6 }}>
-              จัดการครบแล้ว
-            </div>
-            <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.inkSoft }}>
-              แตะปุ่มกล้องเพื่อเริ่มเบิกค่าใช้จ่ายใหม่
-            </div>
+          <Card theme={theme} padding={28}>
+            <EmptyState
+              theme={theme}
+              icon={Icon.camera}
+              title="จัดการครบแล้ว"
+              subtext="แตะปุ่มกล้องเพื่อเริ่มเบิกค่าใช้จ่ายใหม่"
+            />
           </Card>
         )}
 

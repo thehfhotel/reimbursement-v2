@@ -8,6 +8,13 @@ import { PrimaryButton } from '../../components/primitives';
 const CODE_LENGTH = 6;
 const ONLY_DIGITS = /[^0-9]/g;
 
+/** Contact point shown when the user has no account or needs a new code.
+ *  Change to a LINE deep-link, mailto:, or tel: as appropriate. */
+const ADMIN_CONTACT = 'mailto:admin@example.com';
+
+/** How long (ms) to show the success state before navigating away. */
+const SUCCESS_LINGER_MS = 1600;
+
 interface LinkAccountProps {
   /** Optional nav — if omitted, the screen falls back to `window.location.replace`. */
   nav?: Nav;
@@ -20,6 +27,7 @@ export function LinkAccount({ nav, theme = getTheme(false, '#262626') }: LinkAcc
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [succeeded, setSucceeded] = useState<boolean>(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -42,6 +50,19 @@ export function LinkAccount({ nav, theme = getTheme(false, '#262626') }: LinkAcc
     hiddenInputRef.current?.focus();
   }, []);
 
+  // Escape = clear the entered code (a lighter escape than signing out)
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && code.length > 0) {
+        setCode('');
+        setErrorMessage(null);
+        hiddenInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [code]);
+
   const isCodeComplete = code.length === CODE_LENGTH;
   const canSubmit = isCodeComplete && !submitting;
 
@@ -60,13 +81,19 @@ export function LinkAccount({ nav, theme = getTheme(false, '#262626') }: LinkAcc
     try {
       const response = await api.auth.linkAccount({ code });
       setAuthToken(response.token);
-      if (nav !== undefined) {
-        nav({ name: 'home' });
-      } else {
-        window.location.replace('/');
-      }
+      setSucceeded(true);
+      setTimeout(() => {
+        if (nav !== undefined) {
+          nav({ name: 'home' });
+        } else {
+          window.location.replace('/');
+        }
+      }, SUCCESS_LINGER_MS);
     } catch (error) {
       setErrorMessage(messageForError(error));
+      // Clear the entered code so the user starts fresh
+      setCode('');
+      setTimeout(() => hiddenInputRef.current?.focus(), 0);
     } finally {
       setSubmitting(false);
     }
@@ -83,6 +110,80 @@ export function LinkAccount({ nav, theme = getTheme(false, '#262626') }: LinkAcc
 
   const greeting = displayName !== null ? `สวัสดี ${displayName} — ` : '';
 
+  // ── Success state — shown briefly before navigating home ─────────
+  if (succeeded) {
+    return (
+      <div
+        style={{
+          minHeight: '100%',
+          background: theme.paper,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 16,
+          textAlign: 'center',
+          padding: '0 28px',
+        }}
+      >
+        {/* Success check chip */}
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 16,
+            background: theme.surface2,
+            border: `0.5px solid ${theme.hairline}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <svg
+            width={26}
+            height={26}
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden="true"
+            style={{ display: 'block' }}
+          >
+            <path
+              d="M5 12.5l5 5 9-9"
+              stroke={theme.success}
+              strokeWidth={2.2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+        <div
+          style={{
+            fontFamily: FONT_DISPLAY,
+            fontWeight: 400,
+            fontSize: 24,
+            letterSpacing: -0.4,
+            color: theme.ink,
+            lineHeight: 1.2,
+          }}
+        >
+          เชื่อมต่อบัญชีสำเร็จ
+        </div>
+        <div
+          style={{
+            fontFamily: FONT_UI,
+            fontSize: 14,
+            color: theme.inkSoft,
+            lineHeight: 1.5,
+          }}
+        >
+          กำลังเข้าสู่ระบบ...
+        </div>
+      </div>
+    );
+  }
+
+  // ── Normal state ─────────────────────────────────────────────────
   return (
     <div
       style={{
@@ -184,25 +285,62 @@ export function LinkAccount({ nav, theme = getTheme(false, '#262626') }: LinkAcc
         />
       </div>
 
-      <div style={{ padding: '0 20px 30px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ padding: '0 20px 30px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <PrimaryButton theme={theme} disabled={!canSubmit} onClick={handleSubmit}>
           {submitting ? 'กำลังยืนยัน...' : 'ยืนยัน'}
         </PrimaryButton>
-        <button
-          onClick={handleSignOut}
+
+        {/* Escape options row */}
+        <div
           style={{
-            background: 'transparent',
-            border: 'none',
-            padding: '8px 0',
-            fontFamily: FONT_UI,
-            fontSize: 13,
-            color: theme.inkSoft,
-            cursor: 'pointer',
-            textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 4,
+            padding: '4px 0',
           }}
         >
-          ออกจากระบบ
-        </button>
+          <button
+            onClick={handleSignOut}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: '8px 10px',
+              fontFamily: FONT_UI,
+              fontSize: 13,
+              color: theme.inkSoft,
+              cursor: 'pointer',
+              textAlign: 'center',
+            }}
+          >
+            ออกจากระบบ
+          </button>
+          <span
+            style={{
+              fontFamily: FONT_UI,
+              fontSize: 13,
+              color: theme.hairlineStrong,
+              userSelect: 'none',
+            }}
+          >
+            ·
+          </span>
+          <a
+            href={ADMIN_CONTACT}
+            style={{
+              padding: '8px 10px',
+              fontFamily: FONT_UI,
+              fontSize: 13,
+              color: theme.inkSoft,
+              textDecoration: 'underline',
+              textDecorationColor: theme.inkSofter,
+              textUnderlineOffset: 2,
+              cursor: 'pointer',
+            }}
+          >
+            ขอรหัสใหม่
+          </a>
+        </div>
       </div>
     </div>
   );

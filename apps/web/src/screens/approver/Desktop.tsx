@@ -10,6 +10,8 @@ import { Card, GhostButton, Money, PrimaryButton, StatusPill } from '../../compo
 import { Icon } from '../../components/icons';
 import { ReceiptPhoto, ReceiptThumb } from '../../components/Receipts';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { EmptyState } from '../../components/EmptyState';
+import { Toast, useToast } from '../../components/Toast';
 
 const TABLE_GRID_COLUMNS = '1.2fr 1fr 1fr 100px';
 const DETAIL_MAX_WIDTH = 840;
@@ -37,6 +39,7 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
     open: false,
     kind: 'approve',
   });
+  const { toast, showToast } = useToast();
 
   const allBundles: BundleWithDetails[] = state.bundles;
 
@@ -80,6 +83,7 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
       const updated = await api.bundles.approve(selectedBundle.id);
       applyServerUpdate(updated);
       setConfirmState((s) => ({ ...s, open: false }));
+      showToast('อนุมัติคำขอแล้ว');
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
       setConfirmState((s) => ({ ...s, open: false }));
@@ -121,6 +125,7 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
       applyServerUpdate(updated);
       setConfirmState((s) => ({ ...s, open: false }));
       closePaySheet();
+      showToast('บันทึกการจ่ายสำเร็จ');
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
       setConfirmState((s) => ({ ...s, open: false }));
@@ -176,10 +181,10 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
               actionError={actionError}
             />
           ) : (
-            <DetailEmptyState
+            <EmptyState
               theme={theme}
               icon={Icon.bundle}
-              heading="เลือกคำขอเพื่อดูรายละเอียด"
+              title="เลือกคำขอเพื่อดูรายละเอียด"
               subtext="เลือกรายการจากด้านซ้ายเพื่อดูใบเสร็จ ยอดรวม และดำเนินการอนุมัติ"
             />
           )}
@@ -238,6 +243,8 @@ export function DesktopApprover({ theme, state, setState, onNavigate, currentUse
           onCancel={() => setConfirmState((s) => ({ ...s, open: false }))}
         />
       )}
+
+      <Toast toast={toast} theme={theme} />
     </DesktopShell>
   );
 }
@@ -445,21 +452,12 @@ function BundleListColumn({
 
       <div style={{ flex: 1, overflow: 'auto', padding: '8px 0' }}>
         {list.length === 0 && (
-          <div
-            style={{
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              padding: '0 28px',
-              gap: 8,
-            }}
-          >
-            <div style={{ opacity: 0.5 }}>{Icon.receipt(theme.inkSofter)}</div>
-            <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.inkSoft }}>ไม่มีรายการในสถานะนี้</div>
-          </div>
+          <EmptyState
+            theme={theme}
+            icon={Icon.receipt}
+            title="ไม่มีรายการ"
+            subtext="ไม่มีรายการในสถานะนี้"
+          />
         )}
         {list.map((b) => {
           const sum = sumOfBundle(b);
@@ -917,51 +915,6 @@ function SectionLabel({ theme, children }: SectionLabelProps): JSX.Element {
       }}
     >
       {children}
-    </div>
-  );
-}
-
-interface DetailEmptyStateProps {
-  theme: Theme;
-  icon: (color?: string) => ReactNode;
-  heading: string;
-  subtext: string;
-}
-
-function DetailEmptyState({ theme, icon, heading, subtext }: DetailEmptyStateProps): JSX.Element {
-  return (
-    <div
-      style={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        textAlign: 'center',
-        padding: '0 40px',
-        gap: 14,
-      }}
-    >
-      <div
-        style={{
-          width: 56,
-          height: 56,
-          borderRadius: 16,
-          background: theme.surface2,
-          border: `0.5px solid ${theme.hairline}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {icon(theme.inkSofter)}
-      </div>
-      <div style={{ fontFamily: FONT_DISPLAY, fontSize: 19, fontWeight: 400, letterSpacing: -0.3, color: theme.ink }}>
-        {heading}
-      </div>
-      <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.inkSoft, lineHeight: 1.5, maxWidth: 300 }}>
-        {subtext}
-      </div>
     </div>
   );
 }

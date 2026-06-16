@@ -6,6 +6,8 @@ import { FONT_DISPLAY, FONT_UI } from '../../lib/theme';
 import { AppBar } from '../../components/AppBar';
 import { Avatar, Card, Money, StatusPill } from '../../components/primitives';
 import { ReceiptThumb } from '../../components/Receipts';
+import { EmptyState } from '../../components/EmptyState';
+import { Icon } from '../../components/icons';
 
 interface InboxProps {
   theme: Theme;
@@ -153,10 +155,14 @@ export function Inbox({ theme, state, nav, currentUser }: InboxProps) {
       {/* List */}
       <div style={{ padding: '14px 20px' }}>
         {list.length === 0 && (
-          <Card theme={theme} padding={28} style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: FONT_DISPLAY, fontSize: 20, color: theme.ink, marginBottom: 6 }}>ว่างอยู่</div>
-            <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.inkSoft }}>ไม่มีรายการในแท็บนี้</div>
-          </Card>
+          <div style={{ paddingTop: 40, paddingBottom: 40 }}>
+            <EmptyState
+              theme={theme}
+              icon={Icon.bundle}
+              title="ว่างอยู่"
+              subtext="ไม่มีรายการในแท็บนี้"
+            />
+          </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {list.map((b) => (
