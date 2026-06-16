@@ -9,14 +9,18 @@ interface DesktopShellProps {
 
 /**
  * Bare desktop chrome — sidebar + main content. No macOS window decoration.
- * Width fills viewport; height = 100vh so panels can scroll independently.
+ * Pinned to the viewport with `position: fixed; inset: 0` so it always fills
+ * the full window — this escapes index.html's centered, padded, dark-gradient
+ * `body` (a backdrop meant only for the dev phone-mockup preview), which would
+ * otherwise shrink-wrap the desktop layout and leave dark margins on wide
+ * screens. Each panel scrolls independently via its own overflow.
  */
 export function DesktopShell({ theme, sidebar, children }: DesktopShellProps) {
   return (
     <div
       style={{
-        height: '100vh',
-        width: '100%',
+        position: 'fixed',
+        inset: 0,
         background: theme.paper,
         color: theme.ink,
         display: 'flex',

@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-06-16
+
+### Fixed
+- **Desktop layout now fills the full viewport.** The desktop shell was subject to
+  index.html's centered, padded, dark-gradient `body` (a backdrop intended only for the
+  dev phone-mockup preview), which shrink-wrapped the layout and left dark margins on wide
+  screens. The shell is now pinned with `position: fixed; inset: 0`, so desktop mode always
+  uses the entire browser window.
+
 ## [0.2.0] - 2026-06-16
 
 Production-correctness pass. The app was already a near-complete build with a working
