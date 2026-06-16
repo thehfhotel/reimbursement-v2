@@ -1,9 +1,9 @@
-import type { AppState, Theme } from '../../lib/types';
+import type { AppState, Theme, User } from '../../lib/types';
 import type { Nav } from '../../lib/router';
 import { fmt, fmtN } from '../../lib/format';
 import { FONT_DISPLAY, FONT_UI } from '../../lib/theme';
 import { AppBar } from '../../components/AppBar';
-import { Avatar, Card, IconBtn, Money, SectionHeader } from '../../components/primitives';
+import { Avatar, Card, Money, SectionHeader } from '../../components/primitives';
 import { Icon } from '../../components/icons';
 import { FONT_UI as FONT } from '../../lib/theme';
 import { ReceiptPhoto } from '../../components/Receipts';
@@ -13,9 +13,10 @@ interface HomeProps {
   theme: Theme;
   state: AppState;
   nav: Nav;
+  currentUser: User | null;
 }
 
-export function Home({ theme, state, nav }: HomeProps) {
+export function Home({ theme, state, nav, currentUser }: HomeProps) {
   const { receipts, bundles } = state;
 
   const loose = receipts.filter((r) => r.bundleId === null);
@@ -37,11 +38,10 @@ export function Home({ theme, state, nav }: HomeProps) {
         theme={theme}
         large
         subtitle="ใบเบิกค่าใช้จ่าย"
-        title="สวัสดีค่ะ มายา"
-        leading={<Avatar theme={theme} initials="มย" />}
+        title={currentUser ? `สวัสดีค่ะ ${currentUser.name}` : 'สวัสดีค่ะ'}
+        leading={<Avatar theme={theme} initials={currentUser?.initials ?? ''} />}
         trailing={
           <>
-            <IconBtn theme={theme}>{Icon.bell(theme.ink)}</IconBtn>
             <button
               onClick={() => nav({ name: 'upload' })}
               style={{
@@ -205,7 +205,7 @@ export function Home({ theme, state, nav }: HomeProps) {
 
       {/* Bundles */}
       <div style={{ padding: '0 20px' }}>
-        <SectionHeader theme={theme} title="คำขอ" action={<span>ดูทั้งหมด</span>} />
+        <SectionHeader theme={theme} title="คำขอ" />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {bundles.map((b) => (
             <BundleRow

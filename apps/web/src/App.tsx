@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AppState, Tweaks, User } from './lib/types';
 import type { Route } from './lib/router';
 import { getTheme } from './lib/theme';
+import { useViewportPlatform } from './lib/useViewportPlatform';
 import {
   ApiError,
   DEV_USER_ID_BY_ROLE,
@@ -57,6 +58,11 @@ function isPublicAuthRoute(route: Route): boolean {
 export function App() {
   const [tweaks, setTweaks] = useState<Tweaks>(TWEAK_DEFAULTS);
   const theme = getTheme(tweaks.dark, tweaks.accent);
+
+  // Production picks the layout from the viewport; the dev tweaks panel can
+  // still force a platform for previewing.
+  const viewportPlatform = useViewportPlatform();
+  const platform = IS_DEV ? tweaks.platform : viewportPlatform;
 
   const [route, setRoute] = useState<Route>(initialRouteFromUrl);
   const nav = (r: Route) => setRoute(r);
@@ -228,14 +234,14 @@ export function App() {
   }
 
   const role = currentUser?.role ?? tweaks.role;
-  const screen = renderScreen({ route, theme, state, setState, nav, role });
+  const screen = renderScreen({ route, theme, state, setState, nav, role, currentUser });
   // FAB is mobile-only; desktop home has the explicit + button in the AppBar.
   const showFab =
-    tweaks.platform === 'mobile' &&
+    platform === 'mobile' &&
     role === 'employee' &&
     (route.name === 'home' || route.name === 'record');
 
-  if (tweaks.platform === 'desktop') {
+  if (platform === 'desktop') {
     return (
       <>
         {role === 'approver' ? (
@@ -253,44 +259,65 @@ export function App() {
     );
   }
 
-  return (
+  const mobileShell = (
     <>
-      <IOSDevice dark={tweaks.dark} width={402} height={874}>
-        <div
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: theme.paper,
+          overflow: 'auto',
+        }}
+      >
+        {screen}
+      </div>
+      {showFab && (
+        <button
+          onClick={() => setRoute({ name: 'upload' })}
           style={{
             position: 'absolute',
-            inset: 0,
-            background: theme.paper,
-            overflow: 'auto',
+            bottom: 28,
+            right: 24,
+            width: 60,
+            height: 60,
+            borderRadius: 30,
+            background: theme.accent,
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 12px 28px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.18)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            zIndex: 50,
           }}
         >
-          {screen}
+          {Icon.camera('#fff')}
+        </button>
+      )}
+    </>
+  );
+
+  return (
+    <>
+      {IS_DEV ? (
+        // Dev-only phone preview frame (the tweaks panel toggles platform).
+        <IOSDevice dark={tweaks.dark} width={402} height={874}>
+          {mobileShell}
+        </IOSDevice>
+      ) : (
+        // Production: render full-bleed at the device viewport.
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: theme.paper,
+            overflow: 'hidden',
+          }}
+        >
+          {mobileShell}
         </div>
-        {showFab && (
-          <button
-            onClick={() => setRoute({ name: 'upload' })}
-            style={{
-              position: 'absolute',
-              bottom: 28,
-              right: 24,
-              width: 60,
-              height: 60,
-              borderRadius: 30,
-              background: theme.accent,
-              border: 'none',
-              cursor: 'pointer',
-              boxShadow: '0 12px 28px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.18)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              zIndex: 50,
-            }}
-          >
-            {Icon.camera('#fff')}
-          </button>
-        )}
-      </IOSDevice>
+      )}
       {IS_DEV && <TweaksPanel tweaks={tweaks} onChange={setTweak} onJump={onJump} />}
     </>
   );
@@ -303,27 +330,28 @@ interface RenderArgs {
   setState: (updater: (s: AppState) => AppState) => void;
   nav: (r: Route) => void;
   role: Tweaks['role'];
+  currentUser: User | null;
 }
 
-function renderScreen({ route, theme, state, setState, nav, role }: RenderArgs) {
+function renderScreen({ route, theme, state, setState, nav, role, currentUser }: RenderArgs) {
   if (role === 'employee') {
-    if (route.name === 'home') return <Home theme={theme} state={state} nav={nav} />;
+    if (route.name === 'home') return <Home theme={theme} state={state} nav={nav} currentUser={currentUser} />;
     if (route.name === 'upload') return <Upload theme={theme} state={state} nav={nav} setState={setState} />;
     if (route.name === 'record') return <RecordDetail theme={theme} state={state} nav={nav} recordId={route.id} />;
     if (route.name === 'bundle-new') return <BundleBuilder theme={theme} state={state} nav={nav} setState={setState} />;
     if (route.name === 'bundle-submitted')
       return <BundleSubmitted theme={theme} state={state} nav={nav} bundleId={route.id} />;
     if (route.name === 'bundle') return <BundleDetail theme={theme} state={state} nav={nav} bundleId={route.id} />;
-    return <Home theme={theme} state={state} nav={nav} />;
+    return <Home theme={theme} state={state} nav={nav} currentUser={currentUser} />;
   }
 
   if (route.name === 'approver-home' || route.name === 'home')
-    return <Inbox theme={theme} state={state} nav={nav} />;
+    return <Inbox theme={theme} state={state} nav={nav} currentUser={currentUser} />;
   if (route.name === 'approver-review')
     return <Review theme={theme} state={state} nav={nav} bundleId={route.id} setState={setState} />;
   if (route.name === 'approver-pay')
     return <Pay theme={theme} state={state} nav={nav} bundleId={route.id} setState={setState} />;
-  return <Inbox theme={theme} state={state} nav={nav} />;
+  return <Inbox theme={theme} state={state} nav={nav} currentUser={currentUser} />;
 }
 
 function pathForRoute(route: Route): string {

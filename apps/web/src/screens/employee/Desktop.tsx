@@ -5,7 +5,6 @@ import { fmt, fmt0, fmtN, formatThaiDate } from '../../lib/format';
 import { FONT_DISPLAY, FONT_MONO, FONT_UI } from '../../lib/theme';
 import { api, receiptFormFromFields } from '../../lib/api';
 import { dataUrlToFile } from '../../lib/photoUpload';
-import { userNameById } from '../../lib/userNames';
 import { DesktopShell, SidebarSection } from '../../components/DesktopShell';
 import { Card, GhostButton, Money, PrimaryButton, StatusPill } from '../../components/primitives';
 import { Icon } from '../../components/icons';
@@ -1227,7 +1226,7 @@ function BundleStatusBlock({ theme, bundle, total }: BundleStatusBlockProps) {
             อนุมัติแล้ว · รอโอนเงิน
           </div>
           <div style={{ fontFamily: FONT_UI, fontSize: 12, color: theme.inkSoft, marginTop: 2 }}>
-            {userNameById(bundle.approvedById)} อนุมัติเมื่อ {formatThaiDate(bundle.approvedAt)}
+            {bundle.approver?.name ?? ''} อนุมัติเมื่อ {formatThaiDate(bundle.approvedAt)}
           </div>
         </div>
       </div>

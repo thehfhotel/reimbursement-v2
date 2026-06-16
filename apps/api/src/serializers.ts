@@ -99,12 +99,19 @@ export function serializeBundle(bundle: PrismaBundle): SharedBundle {
 }
 
 export function serializeBundleWithDetails(
-  bundle: PrismaBundle & { receipts: PrismaReceipt[]; user: PrismaUser },
+  bundle: PrismaBundle & {
+    receipts: PrismaReceipt[];
+    user: PrismaUser;
+    approver?: PrismaUser | null;
+  },
 ): BundleWithDetails {
   return {
     ...serializeBundle(bundle),
     receipts: bundle.receipts.map(serializeReceipt),
-    submitter: { name: bundle.user.name },
+    submitter: { name: bundle.user.name, initials: bundle.user.initials },
+    approver: bundle.approver
+      ? { name: bundle.approver.name, initials: bundle.approver.initials }
+      : null,
   };
 }
 

@@ -29,7 +29,6 @@ export function RecordDetail({ theme, state, nav, recordId }: RecordDetailProps)
             {Icon.back(theme.ink)}
           </IconBtn>
         }
-        trailing={<IconBtn theme={theme}>{Icon.more(theme.ink)}</IconBtn>}
       />
 
       <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 20px 28px' }}>

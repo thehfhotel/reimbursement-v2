@@ -2,11 +2,7 @@ import { Elysia, t } from 'elysia';
 import { auth } from '../auth';
 import { prisma } from '../db';
 import { saveUploadedFile } from '../uploads';
-import {
-  bundleStatusFromShared,
-  serializeBundle,
-  serializeBundleWithDetails,
-} from '../serializers';
+import { bundleStatusFromShared, serializeBundleWithDetails } from '../serializers';
 import type { BundleStatus } from '@reimbursement/shared';
 
 const SHARED_BUNDLE_STATUSES: readonly BundleStatus[] = [
@@ -48,16 +44,16 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
         filters.status = bundleStatusFromShared('pending');
       }
 
+      // Include receipts + approver so list items are full BundleWithDetails —
+      // the UI sums receipt amounts and shows the approver, so omitting these
+      // produced an undefined `receipts` crash once real bundles existed.
       const bundles = await prisma.bundle.findMany({
         where: filters,
-        include: { user: true },
+        include: { receipts: true, user: true, approver: true },
         orderBy: { submittedAt: 'desc' },
       });
 
-      return bundles.map((bundle) => ({
-        ...serializeBundle(bundle),
-        submitter: { name: bundle.user.name },
-      }));
+      return bundles.map(serializeBundleWithDetails);
     },
     {
       query: t.Object({
@@ -122,7 +118,7 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
 
         return tx.bundle.findUniqueOrThrow({
           where: { id: bundle.id },
-          include: { receipts: true, user: true },
+          include: { receipts: true, user: true, approver: true },
         });
       });
 
@@ -140,7 +136,7 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
   .get('/:id', async ({ user, params, status }) => {
     const bundle = await prisma.bundle.findUnique({
       where: { id: params.id },
-      include: { receipts: true, user: true },
+      include: { receipts: true, user: true, approver: true },
     });
 
     if (!bundle) {
@@ -163,6 +159,11 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
     if (!bundle) {
       return status(404, { message: 'Bundle not found' });
     }
+    if (bundle.status !== 'PENDING') {
+      return status(409, {
+        message: `Cannot approve a ${bundle.status.toLowerCase()} bundle; only pending bundles can be approved`,
+      });
+    }
 
     const approvedAt = new Date();
 
@@ -174,7 +175,7 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
           approvedAt,
           approvedById: user.id,
         },
-        include: { receipts: true, user: true },
+        include: { receipts: true, user: true, approver: true },
       });
 
       await tx.auditEvent.create({
@@ -200,12 +201,17 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
     if (!bundle) {
       return status(404, { message: 'Bundle not found' });
     }
+    if (bundle.status !== 'PENDING') {
+      return status(409, {
+        message: `Cannot reject a ${bundle.status.toLowerCase()} bundle; only pending bundles can be rejected`,
+      });
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       const result = await tx.bundle.update({
         where: { id: params.id },
         data: { status: 'REJECTED' },
-        include: { receipts: true, user: true },
+        include: { receipts: true, user: true, approver: true },
       });
 
       await tx.auditEvent.create({
@@ -236,6 +242,11 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
       if (!bundle) {
         return status(404, { message: 'Bundle not found' });
       }
+      if (bundle.status !== 'APPROVED') {
+        return status(409, {
+          message: `Cannot pay a ${bundle.status.toLowerCase()} bundle; it must be approved first`,
+        });
+      }
 
       const transferProofPath = await saveUploadedFile(body.proof);
       const transferAmount = sumReceiptAmounts(bundle.receipts);
@@ -251,7 +262,7 @@ export const bundleRoutes = new Elysia({ prefix: '/bundles' })
             transferAmount,
             transferProofPath,
           },
-          include: { receipts: true, user: true },
+          include: { receipts: true, user: true, approver: true },
         });
 
         await tx.auditEvent.create({

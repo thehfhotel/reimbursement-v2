@@ -5,7 +5,6 @@ import { fmt, fmt0, fmtN, formatThaiDate } from '../../lib/format';
 import { FONT_DISPLAY, FONT_MONO, FONT_UI } from '../../lib/theme';
 import { api, payFormFromFields } from '../../lib/api';
 import { dataUrlToFile } from '../../lib/photoUpload';
-import { userNameById } from '../../lib/userNames';
 import { DesktopShell, SidebarItem } from '../../components/DesktopShell';
 import { Card, GhostButton, Money, PrimaryButton, StatusPill } from '../../components/primitives';
 import { Icon } from '../../components/icons';
@@ -806,7 +805,7 @@ function DesktopDetail({
       {bundle.status === 'approved' && (
         <ActionBar theme={theme}>
           <div style={{ flex: 1, fontFamily: FONT_UI, fontSize: 13, color: theme.inkSoft }}>
-            อนุมัติเมื่อ {formatThaiDate(bundle.approvedAt)} โดย {userNameById(bundle.approvedById)} — รอโอนเงิน
+            อนุมัติเมื่อ {formatThaiDate(bundle.approvedAt)} โดย {bundle.approver?.name ?? ''} — รอโอนเงิน
           </div>
           <div style={{ minWidth: 240 }}>
             <PrimaryButton theme={theme} onClick={onPay}>

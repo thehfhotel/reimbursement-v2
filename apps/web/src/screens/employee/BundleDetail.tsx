@@ -32,7 +32,6 @@ export function BundleDetail({ theme, state, nav, bundleId }: BundleDetailProps)
           </IconBtn>
         }
         title={null}
-        trailing={<IconBtn theme={theme}>{Icon.more(theme.ink)}</IconBtn>}
       />
 
       <div style={{ padding: '0 20px 18px' }}>

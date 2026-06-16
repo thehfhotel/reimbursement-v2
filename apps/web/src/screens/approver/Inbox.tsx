@@ -1,22 +1,22 @@
 import { useState } from 'react';
-import type { AppState, BundleStatus, BundleWithDetails, Theme } from '../../lib/types';
+import type { AppState, BundleStatus, BundleWithDetails, Theme, User } from '../../lib/types';
 import type { Nav } from '../../lib/router';
 import { fmt, formatThaiDate } from '../../lib/format';
 import { FONT_DISPLAY, FONT_UI } from '../../lib/theme';
 import { AppBar } from '../../components/AppBar';
-import { Avatar, Card, IconBtn, Money, StatusPill } from '../../components/primitives';
-import { Icon } from '../../components/icons';
+import { Avatar, Card, Money, StatusPill } from '../../components/primitives';
 import { ReceiptThumb } from '../../components/Receipts';
 
 interface InboxProps {
   theme: Theme;
   state: AppState;
   nav: Nav;
+  currentUser: User | null;
 }
 
 type TabKey = Extract<BundleStatus, 'pending' | 'approved' | 'paid'>;
 
-export function Inbox({ theme, state, nav }: InboxProps) {
+export function Inbox({ theme, state, nav, currentUser }: InboxProps) {
   const allBundles: BundleWithDetails[] = state.bundles;
   const pending = allBundles.filter((b) => b.status === 'pending');
   const approved = allBundles.filter((b) => b.status === 'approved');
@@ -42,13 +42,7 @@ export function Inbox({ theme, state, nav }: InboxProps) {
         large
         subtitle="การเงิน · ผู้อนุมัติ"
         title="กล่องอนุมัติ"
-        leading={<Avatar theme={theme} initials="กพ" />}
-        trailing={
-          <>
-            <IconBtn theme={theme}>{Icon.filter(theme.ink)}</IconBtn>
-            <IconBtn theme={theme}>{Icon.bell(theme.ink)}</IconBtn>
-          </>
-        }
+        leading={<Avatar theme={theme} initials={currentUser?.initials ?? ''} />}
       />
 
       {/* Stats */}

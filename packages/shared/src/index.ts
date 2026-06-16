@@ -56,6 +56,8 @@ export type BundleStatus = 'draft' | 'pending' | 'approved' | 'paid' | 'rejected
 
 export interface Submitter {
   name: string;
+  /** Initials for avatar (e.g. "มย"). */
+  initials: string;
 }
 
 export interface Bundle {
@@ -159,4 +161,6 @@ export interface PayBundleRequest {
 export interface BundleWithDetails extends Bundle {
   receipts: Receipt[];
   submitter: Submitter;
+  /** The approver who actioned this bundle, once approved/paid; null while pending. */
+  approver: Submitter | null;
 }
