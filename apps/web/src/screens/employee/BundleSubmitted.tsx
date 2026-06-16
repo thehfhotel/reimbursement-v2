@@ -72,7 +72,7 @@ export function BundleSubmitted({ theme, state, nav, bundleId }: BundleSubmitted
         >
           ส่งให้
           <br />
-          ก. พล แล้ว
+          ฝ่ายการเงินแล้ว
         </h1>
         <div
           style={{

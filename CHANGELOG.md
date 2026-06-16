@@ -20,9 +20,13 @@ reimbursements.
 - **Bundle list missing receipts.** `GET /bundles` omitted receipts (and the approver),
   which would crash the inbox/home once any real bundle existed. List responses are now full
   bundle details.
-- **Hardcoded identity.** Mobile headers showed placeholder initials/greeting and the desktop
-  screens resolved approver/submitter names from a hardcoded seed map. Names and initials now
-  come from the live API / logged-in user.
+- **Hardcoded identity.** Mobile headers, the desktop sidebar footer, and the submission screens
+  showed placeholder names/initials ("ก. พล", "มายา"), and the desktop screens resolved
+  approver/submitter names from a hardcoded seed map. Names/initials now come from the live API /
+  logged-in user; employee-facing copy refers to "ฝ่ายการเงิน" rather than a fixed person.
+- **Stale HTML after deploy.** `index.html` carried no cache directive, so browsers kept serving
+  the previous bundle after a deploy. It is now sent `no-cache` (hashed assets stay immutable),
+  so deploys reach returning users.
 
 ### Added
 - Viewport-based platform detection (`useViewportPlatform`).

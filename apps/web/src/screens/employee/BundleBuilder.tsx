@@ -137,7 +137,7 @@ export function BundleBuilder({ theme, state, nav, setState }: BundleBuilderProp
           <div style={{ fontFamily: FONT_UI, fontSize: 12, color: theme.inkSoft, textAlign: 'right' }}>
             {selected.size} ใบเสร็จ
             <br />
-            <span style={{ color: theme.inkSofter }}>→ ก. พล, การเงิน</span>
+            <span style={{ color: theme.inkSofter }}>→ ฝ่ายการเงิน</span>
           </div>
         </div>
         <PrimaryButton theme={theme} disabled={selected.size === 0 || submitting} onClick={submit}>

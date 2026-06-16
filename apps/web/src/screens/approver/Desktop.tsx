@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { ChangeEvent, CSSProperties, ReactNode } from 'react';
-import type { AppState, BundleStatus, BundleWithDetails, Receipt, Theme } from '../../lib/types';
+import type { AppState, BundleStatus, BundleWithDetails, Receipt, Theme, User } from '../../lib/types';
 import { fmt, fmt0, fmtN, formatThaiDate } from '../../lib/format';
 import { FONT_DISPLAY, FONT_MONO, FONT_UI } from '../../lib/theme';
 import { api, payFormFromFields } from '../../lib/api';
@@ -19,9 +19,10 @@ interface DesktopApproverProps {
   state: AppState;
   setState: (updater: (s: AppState) => AppState) => void;
   onNavigate?: (target: 'admin-employees') => void;
+  currentUser: User | null;
 }
 
-export function DesktopApprover({ theme, state, setState, onNavigate }: DesktopApproverProps): JSX.Element {
+export function DesktopApprover({ theme, state, setState, onNavigate, currentUser }: DesktopApproverProps): JSX.Element {
   const [filter, setFilter] = useState<FilterKey>('pending');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [photoIdx, setPhotoIdx] = useState<number | null>(null);
@@ -107,6 +108,7 @@ export function DesktopApprover({ theme, state, setState, onNavigate }: DesktopA
       rejectedCount={rejectedBundles.length}
       onSelectFilter={selectFilter}
       onNavigate={onNavigate}
+      currentUser={currentUser}
     />
   );
 
@@ -192,6 +194,7 @@ interface SidebarContentProps {
   rejectedCount: number;
   onSelectFilter: (next: FilterKey) => void;
   onNavigate?: (target: 'admin-employees') => void;
+  currentUser: User | null;
 }
 
 function SidebarContent({
@@ -203,6 +206,7 @@ function SidebarContent({
   rejectedCount,
   onSelectFilter,
   onNavigate,
+  currentUser,
 }: SidebarContentProps): JSX.Element {
   return (
     <>
@@ -292,10 +296,10 @@ function SidebarContent({
             fontWeight: 600,
           }}
         >
-          กพ
+          {currentUser?.initials ?? ''}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.ink, fontWeight: 500 }}>ก. พล</div>
+          <div style={{ fontFamily: FONT_UI, fontSize: 13, color: theme.ink, fontWeight: 500 }}>{currentUser?.name ?? ''}</div>
           <div style={{ fontFamily: FONT_UI, fontSize: 11, color: theme.inkSoft }}>การเงิน</div>
         </div>
       </div>

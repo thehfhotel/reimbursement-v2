@@ -250,6 +250,7 @@ export function App() {
             state={state}
             setState={setState}
             onNavigate={(target) => setRoute({ name: target })}
+            currentUser={currentUser}
           />
         ) : (
           <DesktopEmployee theme={theme} state={state} setState={setState} />
