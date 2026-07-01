@@ -27,6 +27,16 @@ export function DesktopShell({ theme, sidebar, children }: DesktopShellProps) {
         overflow: 'hidden',
       }}
     >
+      {/* HF One shell band. Desktop-only outer chrome (this component, not
+          the mobile iOS-device preview) — monogram + portal link only, no
+          app switcher, since this app is employee/approver-facing. */}
+      <script
+        defer
+        src="https://erp.thehfhotel.org/shell/hf-bar.js"
+        data-app="Reimbursement"
+        data-module="finance"
+        data-portal-only="1"
+      />
       <aside
         style={{
           width: 240,

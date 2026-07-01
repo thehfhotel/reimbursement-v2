@@ -18,14 +18,18 @@ export function getTheme(dark: boolean, accent: string): Theme {
     inkSofter: dark ? 'rgba(244,241,234,0.38)' : 'rgba(21,21,26,0.50)',
     hairline: dark ? 'rgba(255,255,255,0.08)' : 'rgba(21,21,26,0.08)',
     hairlineStrong: dark ? 'rgba(255,255,255,0.14)' : 'rgba(21,21,26,0.14)',
-    success: '#3B7A4B',
+    // HF One burgundy family (brand-500 #8B0000 / brand-300 #C76060) —
+    // brand-500 reads dark-on-cream in light mode, but is too dark to read
+    // as text against the near-black dark paper, so dark mode lifts to
+    // brand-300 for contrast.
+    success: '#2F855A',
     warn: '#C4761A',
-    danger: '#B43A3A',
+    danger: dark ? '#C76060' : '#8B0000',
     // Distinct, calm status hues — separate from the burnt-orange brand accent.
     statusPending: dark ? '#D9A441' : '#B0791E',
     statusApproved: dark ? '#6FA0D6' : '#3F6EA8',
-    statusPaid: dark ? '#5FA974' : '#3B7A4B',
-    statusRejected: dark ? '#D97070' : '#B43A3A',
+    statusPaid: dark ? '#5FA974' : '#2F855A',
+    statusRejected: dark ? '#D97070' : '#8B0000',
   };
 }
 
