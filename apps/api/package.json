@@ -17,14 +17,14 @@
   "dependencies": {
     "@elysiajs/cors": "^1.1.1",
     "@elysiajs/static": "^1.1.1",
-    "@prisma/adapter-pg": "^7.2.0",
-    "@prisma/client": "^7.2.0",
+    "@prisma/adapter-pg": "^7.9.0",
+    "@prisma/client": "^7.9.0",
     "@prisma/client-runtime-utils": "^7.2.0",
     "@reimbursement/shared": "workspace:*",
     "elysia": "^1.1.27",
     "jose": "^6.2.3",
     "pg": "^8.13.1",
-    "prisma": "^7.2.0"
+    "prisma": "^7.9.0"
   },
   "devDependencies": {
     "@types/pg": "^8.11.10",
